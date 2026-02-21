@@ -1,260 +1,92 @@
-# Game Design Document
-
-Revision: 0.0.1
-
-
-> GDD Template Written by: Benjamin “HeadClot” Stanley
-
-
-- Overview
-  - Fantasia / Espaço Sideral / Casual
-  - Mover a nave para os lados de acordo com as curvas
-  - Mobile
-  - Project Scope
-  - Influences (Brief)
-    - <Club Penguin>
-    - <Mario Kart>
-  - The elevator Pitch
-  - Project Description (Brief):
-Um jogo mobile casual sobre controlar uma nave por uma avenida, não cair da nave, e acumular pontos.
-  - Project Description (Detailed):
-Théo é um gato alienígena que está em uma viagem de ônibus espacial, voltando da escola, a caminho de seu planeta casa.
-Preso no horário de pico, o ônibus lotado Estrela não tem espaço interno para Théo, o que faz com que ele precise viajar no topo da nave.
-Agora Théo precisa sobreviver às curvas acentuadas da Via Láctea.
-Vire o corpo de Théo nas direções certas nos momentos certos para que ele não perca o equilíbrio e caia do ônibus.
-Faça manobras para acumular pontos.
-Cuidado, fazer manobras nos momentos errados é arriscado.
-Acumule a quantidade certa de pontos para avançar nas fases.
-
-- What sets this project apart?
-  - Core Gameplay Mechanics (Detailed)
-    - <Segure o lado esquerdo da tela para virar à esquerda. Vire quando a curva acentuar à esquerda, ou o gato cai>
-    - <Segure o lado direito da tela para virar à direita. Vire quando a curva acentuar à direita, ou o gato cai>
-    - <Virar desnecessariamente ou para o lado errado também fará o personagem cair>
-    - <Arraste para cima para fazer a manobra #1>
-    - <Arraste para baixo para fazer a manobra #2>
-    - <Quando se faz manobras você não pode virar>
-    - <Se o gato cair os pontos voltam ao 0>
-- Story and Gameplay
-  - Um gato alien viajando em uma nave à caminho de casa
-  - Story (Detailed)
-Em um universo onde raças de aliens diferentes vivem em harmonia e viagens interplanetárias são comuns, nosso protagonista é um gato alien
-de 16 anos chamado Théo que vai e volta da escola todos os dias de ônibus espacial, transporte público comum nesse universo. Um dia depois
-da escola, Théo percebe que o ônibus Estrela que ele sempre pega está lotado, sem mais opções e precisando voltar para casa, Théo viajará
-pela Via Láctea no topo do ônibus. A avenida possui curvas acentuadas que vão exigir todo o equilíbrio e concentração de Théo para não cair.
-
-  - Vire de acordo com as curvas e faça manobras arriscadas para acumular pontos, pontos serão necessários para avançar nas fases.
-  - Gameplay (Detailed)
-O jogador precisa manter o equilíbrio entre não cair e acumular pontos, sabendo que fazer manobras é necessário, mas que fazê-las
-no momento errado pode colocar tudo à perder
-- Assets Needed
-  - 2D
-  - Sound
-  - Code
-  - Animation
-- Schedule
-  - <Object #1>
-  - <Object #2>
-  - <Object #3>
-  - <Object #4>
-
-
 # Overview
 
 
 ## Theme / Setting / Genre
 
-<Insert Theme here>
+Fantasia espacial / Espaço sideral / Casual mobile
 
 ## Core Gameplay Mechanics Brief
 
-  - <Gameplay Mechanic #1>
-  - <Gameplay Mechanic #2>
-  - <Gameplay Mechanic #3>
-  - <Gameplay Mechanic #4>
+  - <Segurar lado esquerdo da tela para acompanhar curvas à esquerda>
+  - <Segurar lado direito da tela para acompanhar curvas à direita>
+  - <Realizar manobras com swipe (cima/baixo) para ganhar pontos>
+  - <Sistema de risco: manobras impedem virar e podem causar queda>
 
 ## Targeted platforms
-  - <Example Platform #1 Here>
-  - <Example Platform #2 Here>
-  - <Example Platform #3 Here>
-
-## Monetization model (Brief/Document) 
-  - Monetization Type (Premium, Paid Alpha/Beta/Final, Ad Driven, Micro-transactions, Subscription, etc.)
-  - Link to Monetization Document (How do you plan to monetize the game?)
+  - <Android>
+  - <iOS>
 
 ## Project Scope 
-  - Game Time Scale
-    - Cost? (How much will it cost?)
-    - Time Scale (How long will it take to make this game?)
   - Team Size
     - Core Team
-      - Team Member name?
-        - What does he/she do?
-        - Cost to employ them full time or part time
-      - etc. (List as many core team members as you need to)
-    - Marketing Team
-      - Team Member name?
-        - What does he/she do?
-        - Cost to employ them full time or part time
-      - Etc. (List as many marketing team members as you need to)
-    - Licenses / Hardware / Other Costs
-    - Total Costs with breakdown
+      - Letícia
+        - Programação, game design e artes
+      - Clara
+- Programação, game design e artes
 
 ## Influences (Brief)
-  - Influence #1
-    - Medium (Television, Games, Literature, Movies, etc.)
-    - /Explain why this is an influence in 1 Paragraph or less/
-  - Influence #2
-    - Medium (Television, Games, Literature, Movies, etc.)
-    - /Explain why this is an influence in 1 Paragraph or less/
-  - Influence #3
-    - Medium (Television, Games, Literature, Movies, etc.)
-    - /Explain why this is an influence in 1 Paragraph or less/
-  - Influence #4>
-    - Medium (Television, Games, Literature, Movies, etc.)
-    - /Explain why this is an influence in 1 Paragraph or less/
+  - Club Penguin
+    - Jogo
+    - Influência no mini game “Cart Surfer”, especialmente na lógica de acompanhar curvas e responder rapidamente à direção correta.
+  - Mario Kart
+    - Jogo
+    - Influência na pista “Rainbow Road”,  na questão estética do jogo
 
 ## The elevator Pitch
 
-[A one sentence pitch for your game.]
-Pretend that your were pitching your game to a executive going to the elevator. You have less than 60 Seconds.
+Um gato alienígena preso no topo de um ônibus espacial precisa do seu reflexo para sobreviver às curvas perigosas da Via Láctea enquanto realiza manobras arriscadas para chegar em casa com estilo.
 
 ## Project Description (Brief):
 
-[Two Paragraphs at least]
-[No more than three paragraphs]
+Galacto é um jogo mobile casual onde o jogador controla Théo, um gato alienígena viajando no topo de um ônibus espacial lotado pela Via Láctea.
+O objetivo é acompanhar curvas perigosas no momento exato e realizar manobras arriscadas para acumular pontos suficientes para completar cada fase — sem cair no vazio do espaço.
 
 ## Project Description (Detailed)
 
-[Four Paragraphs or more If needs be]
-[No more than six paragraphs]
+Em um universo onde viagens interplanetárias são comuns, Théo, um jovem gato alienígena de 16 anos, está voltando da escola para casa. O ônibus espacial Estrela está lotado e ele precisa viajar no topo da nave.
+A Via Láctea funciona como uma grande avenida cósmica cheia de curvas imprevisíveis. O jogador deve inclinar Théo para a direção correta no momento certo para manter o equilíbrio.
+Além disso, é possível realizar manobras aéreas para acumular pontos extras. Porém, enquanto realiza manobras, Théo não pode se inclinar — aumentando o risco.
+Cada fase exige uma pontuação mínima para ser concluída. A dificuldade aumenta com curvas mais rápidas, maior frequência de mudanças e exigência maior de pontos.
 
 # What sets this project apart?
-  - <Reason #1>
-  - <Reason #2>
-  - <Reason #3>
-  - <Reason #4>
-  - <etc.>
+  - <Mecânica extremamente simples, mas baseada em precisão e timing>
+  - <Sistema de risco vs recompensa bem definido>
+  - <Estética espacial leve e carismática>
 
 ## Core Gameplay Mechanics (Detailed)
-  - [Core Gameplay Mechanic #1]
-    - [Details] /Describe in 2 Paragraphs or less/
-    - [How it works] /Describe in 2 Paragraphs or less/
-  - [Core Gameplay Mechanic #2]
-    - [Details] /Describe in 2 Paragraphs or less/
-    - [How it works] /Describe in 2 Paragraphs or less/
-  - [Core Gameplay Mechanic #3]
-    - [Details] /Describe in 2 Paragraphs or less/
-    - [How it works] /Describe in 2 Paragraphs or less/
-  - [Core Gameplay Mechanic #4]
-    - [Details] /Describe in 2 Paragraphs or less/
-    - [How it works] /Describe in 2 Paragraphs or less/
+  - Controle Direcional por Pressão
+    - O jogador segura o lado esquerdo ou direito da tela para inclinar Théo conforme a curva. Se a curva for para a esquerda, deve-se pressionar o lado esquerdo.
+    - O sistema detecta curvas geradas proceduralmente. Se o jogador não estiver pressionando o lado correto quando a curva atingir intensidade crítica, Théo perde o equilíbrio e cai.
+  - Penalidade por Direção Incorreta
+    - Virar para o lado errado ou virar sem necessidade causa desequilíbrio.
+    - Se o jogador não estiver pressionando o lado correto da tela quando uma curva surgir, ele cairá instantaneamente
+  - Sistema de Manobras (Swipe Up / Down)
+    - Arrastar para cima realiza Manobra #1.
+Arrastar para baixo realiza Manobra #2.
+    - Durante a animação da manobra, o jogador não pode virar. Se uma curva ocorrer nesse momento, o risco aumenta. Manobras concedem pontos.
+  - Sistema de Pontuação e Progressão
+    - Pontos são ganhos por manobras.
+    - Cada fase possui uma meta mínima. Ao cair, a pontuação volta a zero. A dificuldade aumenta progressivamente.
 
 # Story and Gameplay
 
 ## Story (Brief)
 
-[The Summary or TL;DR version of below]
+Um gato alien viajando em uma nave à caminho de casa
 
 ## Story (Detailed)
 
-[Go into as much detail as needs be]
-[Spare no detail]
-[Use Mind Mapping software to get your point across]
+Em um universo onde raças de aliens diferentes vivem em harmonia e viagens interplanetárias são comuns, nosso protagonista é um gato alien de 16 anos chamado Théo que vai e volta da escola todos os dias de ônibus espacial, transporte público comum nesse universo. Um dia depois da escola, Théo percebe que o ônibus Estrela que ele sempre pega está lotado, sem mais opções e precisando voltar para casa, Théo viajará pela Via Láctea no topo do ônibus. A avenida possui curvas acentuadas que vão exigir todo o equilíbrio e concentração de Théo para não cair.
 
 ## Gameplay (Brief)
 
-[The Summary version of below]
+Vire de acordo com as curvas e faça manobras arriscadas para acumular pontos, pontos serão necessários para avançar nas fases.
 
 ## Gameplay (Detailed)
 
-[Go into as much detail as needs be]
-[Spare no detail]
-[Combine this with the game mechanics section above]
-
-# Assets Needed
-
-## 2D
-  - Textures
-    - Environment Textures
-  - Heightmap data (If applicable)
-    - List required data required - Example: DEM data of the entire UK.
-  - Etc.
-
-## 3D
-  - Characters List
-    - Character #1
-    - Character #2
-    - Character #3
-    - etc.
-  - Environmental Art Lists
-    - Example #1
-    - Example #2 
-    - Example #3
-    - etc.
-
-## Sound
-  - Sound List (Ambient)
-    - Outside
-      - Level 1
-      - Level 2 
-      - Level 3
-      - etc.
-    - Inside
-      - Level 1
-      - Level 2
-      - Level 3
-      - etc.
-  - Sound List (Player)
-    - Character Movement Sound List
-      - Example 1
-      - Example 2
-      - etc. 
-    - Character Hit / Collision Sound list
-      - Example 1
-      - Example 2
-      - etc.
-    - Character on Injured / Death sound list
-      - Example 1
-      - Example 2
-      - etc.
-
-## Code
-  - Character Scripts (Player Pawn/Player Controller)
-    - Example
-  - Ambient Scripts (Runs in the background)
-    - Example
-  - NPC Scripts
-    - Example
-
-## Animation
-  - Environment Animations 
-    - Example
-  - Character Animations 
-    - Player
-      - Example 
-    - NPC
-      - Example
-
-# Schedule
-  - <Object #1>
-    - Time Scale
-      - Milestone 1
-      - Milestone 2
-      - Etc.
-  - <Object #2>
-    - Time Scale
-      - Milestone 1
-      - Milestone 2
-      - Etc.
-  - <Object #3>
-    - Time Scale
-      - Milestone 1
-      - Milestone 2
-      - Etc.
-  - <Object #4>
-    - Time Scale
-      - Milestone 1
-      - Milestone 2
-      - Etc.
-
+A pista gera curvas com dificuldade progressiva. O jogador deve reagir rapidamente pressionando o lado correto da tela.
+Manobras aumentam a pontuação, mas bloqueiam o controle direcional temporariamente. Isso cria tensão constante entre jogar seguro ou arriscar.
+A dificuldade escala com:
+Curvas mais rápidas
+Curvas mais frequentes
+Maior pontuação mínima exigida
