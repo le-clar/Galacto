@@ -32,8 +32,7 @@ export default class Scene0 extends Phaser.Scene {
 
     bg.setScale(scale);
     bg.setDepth(-1);
-
-    this.bg = bg; // salvar pra animar depois
+    this.bg = bg;
 
     // =====================
     // MAPA (TILED)
@@ -48,10 +47,18 @@ export default class Scene0 extends Phaser.Scene {
     this.layer = map.createLayer("elementos", tileset, 0, 0);
     this.layer.setDepth(0);
 
+    // 🔥 pega altura do mapa
+    const mapHeight = map.heightInPixels;
+
+    // 🔥 posiciona o mapa já “no final”
+    this.layer.y = height - mapHeight;
+
     // =====================
-    // PLAYER
+    // PLAYER (fixo na tela)
     // =====================
-    this.player = this.add.sprite(width / 2, height * 0.85, "nave");
+    this.player = this.add.sprite(width / 2, height - 10, "nave");
+
+    this.player.setOrigin(0.5, 1);
     this.player.setScale(3);
     this.player.setFrame(2);
     this.player.setDepth(10);
@@ -86,17 +93,17 @@ export default class Scene0 extends Phaser.Scene {
 
   update() {
     // =====================
-    // AUTO-SCROLL (MAPA)
+    // AUTO-SCROLL DO MAPA
     // =====================
     if (this.layer) {
-      this.layer.y += 1; // velocidade do mapa
+      this.layer.y += 1;
     }
 
     // =====================
-    // PARALLAX (FUNDO)
+    // PARALLAX DO FUNDO
     // =====================
     if (this.bg) {
-      this.bg.y += 0.5; // mais lento que o mapa
+      this.bg.y += 0.5;
     }
 
     // =====================
