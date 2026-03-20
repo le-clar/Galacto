@@ -4,18 +4,26 @@ export default class Scene0 extends Phaser.Scene {
   }
 
   preload() {
+    // fundo
     this.load.image("logo", "assets/pixel-art.png");
 
+    // nave
     this.load.spritesheet("nave", "assets/nave.png", {
       frameWidth: 28,
       frameHeight: 19,
     });
+
+    // mapa do Tiled
+    this.load.tilemapTiledJSON("map", "assets/map.json");
+    this.load.image("celestial-objects", "assets/celestial-objects.png");
   }
 
   create() {
     const { width, height } = this.scale;
 
-    // fundo
+    // =====================
+    // FUNDO
+    // =====================
     const bg = this.add.image(width / 2, height / 2, "logo");
 
     const scaleX = width / bg.width;
@@ -23,15 +31,34 @@ export default class Scene0 extends Phaser.Scene {
     const scale = Math.max(scaleX, scaleY) * 1.3;
 
     bg.setScale(scale);
-    bg.setDepth(0); // fundo atrás
+    bg.setDepth(-1);
 
-    // player
+    this.bg = bg; // salvar pra animar depois
+
+    // =====================
+    // MAPA (TILED)
+    // =====================
+    const map = this.make.tilemap({ key: "map" });
+
+    const tileset = map.addTilesetImage(
+      "celestial-objects",
+      "celestial-objects"
+    );
+
+    this.layer = map.createLayer("elementos", tileset, 0, 0);
+    this.layer.setDepth(0);
+
+    // =====================
+    // PLAYER
+    // =====================
     this.player = this.add.sprite(width / 2, height * 0.85, "nave");
     this.player.setScale(3);
     this.player.setFrame(2);
-    this.player.setDepth(1); // nave na frente
+    this.player.setDepth(10);
 
-    // controle
+    // =====================
+    // CONTROLE
+    // =====================
     this.isPressing = false;
     this.pointer = null;
     this.currentFrame = 2;
@@ -47,15 +74,34 @@ export default class Scene0 extends Phaser.Scene {
       this.targetSide = null;
     });
 
-    // loop de animação suave
+    // =====================
+    // ANIMAÇÃO SUAVE
+    // =====================
     this.time.addEvent({
-      delay: 80, // velocidade da animação (menor = mais rápido)
+      delay: 80,
       loop: true,
       callback: () => this.updateAnimation(),
     });
   }
 
   update() {
+    // =====================
+    // AUTO-SCROLL (MAPA)
+    // =====================
+    if (this.layer) {
+      this.layer.y += 1; // velocidade do mapa
+    }
+
+    // =====================
+    // PARALLAX (FUNDO)
+    // =====================
+    if (this.bg) {
+      this.bg.y += 0.5; // mais lento que o mapa
+    }
+
+    // =====================
+    // INPUT (inclinação)
+    // =====================
     if (!this.isPressing || !this.pointer) return;
 
     const { width } = this.scale;
@@ -68,21 +114,21 @@ export default class Scene0 extends Phaser.Scene {
   }
 
   updateAnimation() {
-    // 👉 indo pra direita
+    // 👉 direita
     if (this.targetSide === "right") {
       if (this.currentFrame > 0) {
         this.currentFrame--;
       }
     }
 
-    // 👈 indo pra esquerda
+    // 👈 esquerda
     else if (this.targetSide === "left") {
       if (this.currentFrame < 4) {
         this.currentFrame++;
       }
     }
 
-    // ⏸ voltando pro centro
+    // ⏸ volta pro centro
     else {
       if (this.currentFrame < 2) {
         this.currentFrame++;
