@@ -4,16 +4,15 @@ export default class Scene0 extends Phaser.Scene {
   }
 
   preload() {
-    // fundo
     this.load.image("logo", "assets/pixel-art.png");
 
-    // nave
-    this.load.spritesheet("nave", "assets/nave.png", {
-      frameWidth: 28,
-      frameHeight: 19,
+    this.load.spritesheet("theo_concept", "assets/theo_concept.png", {
+      frameWidth: 32,
+      frameHeight: 32,
     });
 
-    // mapa do Tiled
+    this.load.image("way_0", "assets/way_0.png");
+
     this.load.tilemapTiledJSON("map", "assets/map.json");
     this.load.image("celestial-objects", "assets/celestial-objects.png");
   }
@@ -25,122 +24,186 @@ export default class Scene0 extends Phaser.Scene {
     // FUNDO
     // =====================
     const bg = this.add.image(width / 2, height / 2, "logo");
-
-    const scaleX = width / bg.width;
-    const scaleY = height / bg.height;
-    const scale = Math.max(scaleX, scaleY) * 1.3;
-
-    bg.setScale(scale);
-    bg.setDepth(-1);
+    const bgScale = Math.max(width / bg.width, height / bg.height) * 1.3;
+    bg.setScale(bgScale);
+    bg.setDepth(-3);
     this.bg = bg;
 
     // =====================
-    // MAPA (TILED)
+    // MAPA
     // =====================
     const map = this.make.tilemap({ key: "map" });
 
     const tileset = map.addTilesetImage(
       "celestial-objects",
-      "celestial-objects"
+      "celestial-objects",
     );
 
-    this.layer = map.createLayer("elementos", tileset, 0, 0);
-    this.layer.setDepth(0);
+    this.mapLayer = map.createLayer("elementos", tileset, 0, 0);
+    this.mapLayer.setDepth(-1);
 
-    // 🔥 pega altura do mapa
-    const mapHeight = map.heightInPixels;
-
-    // 🔥 posiciona o mapa já “no final”
-    this.layer.y = height - mapHeight;
+    this.mapHeight = map.heightInPixels;
+    this.mapLayer.y = height - this.mapHeight;
 
     // =====================
-    // PLAYER (fixo na tela)
+    // ESTRADA
     // =====================
-    this.player = this.add.sprite(width / 2, height - 10, "nave");
+    const texture = this.textures.get("way_0").getSourceImage();
+    const roadScale = (width / texture.width) * 0.25;
+
+    this.roadWidth = Math.round(texture.width * roadScale);
+    this.roadHeight = Math.round(texture.height * roadScale);
+
+    this.roadPieces = [];
+
+    const piecesNeeded = Math.ceil(height / this.roadHeight) + 3;
+
+    for (let i = 0; i < piecesNeeded; i++) {
+      const piece = this.add.image(
+        width / 2,
+        height - i * this.roadHeight,
+        "way_0",
+      );
+
+      piece.setOrigin(0.5, 1);
+      piece.setDisplaySize(this.roadWidth, this.roadHeight);
+      piece.setDepth(1);
+
+      this.roadPieces.push(piece);
+    }
+
+    // =====================
+    // PLAYER
+    // =====================
+    this.player = this.add.sprite(width / 2, height - 20, "theo_concept");
 
     this.player.setOrigin(0.5, 1);
     this.player.setScale(3);
-    this.player.setFrame(2);
+    this.player.setFrame(0);
     this.player.setDepth(10);
 
     // =====================
     // CONTROLE
     // =====================
-    this.isPressing = false;
-    this.pointer = null;
-    this.currentFrame = 2;
-    this.targetSide = null;
+    this.animState = "idle";
+    this.currentFrame = 0;
+    this.startY = 0;
 
     this.input.on("pointerdown", (pointer) => {
-      this.isPressing = true;
-      this.pointer = pointer;
+      this.startY = pointer.y;
+
+      if (pointer.x > width / 2) {
+        this.animState = "right";
+      } else {
+        this.animState = "left";
+      }
     });
 
-    this.input.on("pointerup", () => {
-      this.isPressing = false;
-      this.targetSide = null;
+    this.input.on("pointerup", (pointer) => {
+      const deltaY = this.startY - pointer.y;
+
+      if (deltaY > 50) {
+        this.animState = "up";
+        this.upStep = 0;
+      } else if (deltaY < -50) {
+        this.animState = "down";
+        this.downStep = 0;
+      } else {
+        this.animState = "returning";
+      }
     });
 
-    // =====================
-    // ANIMAÇÃO SUAVE
-    // =====================
     this.time.addEvent({
-      delay: 80,
+      delay: 100,
       loop: true,
       callback: () => this.updateAnimation(),
     });
   }
 
   update() {
+    const speed = 2;
+
     // =====================
-    // AUTO-SCROLL DO MAPA
+    // MAPA
     // =====================
-    if (this.layer) {
-      this.layer.y += 1;
+    if (this.mapLayer) {
+      this.mapLayer.y += speed;
+
+      if (this.mapLayer.y >= this.scale.height) {
+        this.mapLayer.y = this.scale.height - this.mapHeight;
+      }
     }
 
     // =====================
-    // PARALLAX DO FUNDO
+    // ESTRADA
+    // =====================
+    for (const piece of this.roadPieces) {
+      piece.y += speed;
+    }
+
+    for (const piece of this.roadPieces) {
+      if (piece.y >= this.scale.height + this.roadHeight) {
+        const highestPiece = this.roadPieces.reduce((prev, curr) =>
+          curr.y < prev.y ? curr : prev,
+        );
+
+        piece.y = highestPiece.y - this.roadHeight;
+      }
+    }
+
+    // =====================
+    // LIMITE VERTICAL (WRAP)
+    // =====================
+    const topLimit = 50; // ajuste se quiser
+    const bottomLimit = this.scale.height - 20;
+
+    if (this.player.y < topLimit) {
+      this.player.y = bottomLimit;
+    }
+
+    // =====================
+    // FUNDO
     // =====================
     if (this.bg) {
-      this.bg.y += 0.5;
-    }
+      this.bg.y += 0.3;
 
-    // =====================
-    // INPUT (inclinação)
-    // =====================
-    if (!this.isPressing || !this.pointer) return;
-
-    const { width } = this.scale;
-
-    if (this.pointer.x > width / 2) {
-      this.targetSide = "right";
-    } else {
-      this.targetSide = "left";
+      // loop do fundo
+      if (this.bg.y >= this.scale.height + this.bg.displayHeight / 2) {
+        this.bg.y = this.scale.height / 2;
+      }
     }
   }
 
   updateAnimation() {
-    // 👉 direita
-    if (this.targetSide === "right") {
-      if (this.currentFrame > 0) {
-        this.currentFrame--;
+    if (this.animState === "left") {
+      if (this.currentFrame === 0) this.currentFrame = 1;
+      else if (this.currentFrame === 1) this.currentFrame = 2;
+    } else if (this.animState === "right") {
+      if (this.currentFrame === 0) this.currentFrame = 3;
+      else if (this.currentFrame === 3) this.currentFrame = 4;
+    } else if (this.animState === "up") {
+      const seq = [7, 8, 9, 8, 7, 0];
+      this.currentFrame = seq[this.upStep++];
+      if (this.upStep >= seq.length) {
+        this.animState = "idle";
+        this.upStep = 0;
       }
-    }
-
-    // 👈 esquerda
-    else if (this.targetSide === "left") {
-      if (this.currentFrame < 4) {
-        this.currentFrame++;
+    } else if (this.animState === "down") {
+      const seq = [10, 11, 10, 0];
+      this.currentFrame = seq[this.downStep++];
+      if (this.downStep >= seq.length) {
+        this.animState = "idle";
+        this.downStep = 0;
       }
-    }
-
-    // ⏸ volta pro centro
-    else {
-      if (this.currentFrame < 2) {
-        this.currentFrame++;
-      } else if (this.currentFrame > 2) {
-        this.currentFrame--;
+    } else if (this.animState === "returning") {
+      if (this.currentFrame === 4) this.currentFrame = 3;
+      else if (this.currentFrame === 3) {
+        this.currentFrame = 0;
+        this.animState = "idle";
+      } else if (this.currentFrame === 2) this.currentFrame = 1;
+      else if (this.currentFrame === 1) {
+        this.currentFrame = 0;
+        this.animState = "idle";
       }
     }
 

@@ -3,6 +3,11 @@ var config = {
   width: 800,
   height: 600,
   parent: "game-container",
+
+  render: {
+    pixelArt: true,
+  },
+
   physics: {
     default: "arcade",
     arcade: {
@@ -10,6 +15,7 @@ var config = {
       debug: true,
     },
   },
+
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
