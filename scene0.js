@@ -22,8 +22,9 @@ export default class Scene0 extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale;
+    this.worldLayer = this.add.group();
 
-    // Fundo e Mapa
+    // Fundo
     this.bg = this.add
       .image(width / 2, height / 2, "logo")
       .setScrollFactor(0)
@@ -42,18 +43,17 @@ export default class Scene0 extends Phaser.Scene {
       .setDepth(-1)
       .setScrollFactor(0.2)
       .setScale(2);
+    this.worldLayer.add(this.mapLayer);
 
-    // Configuração da Pista
+    // Pista
     this.roadPieces = [];
     const texture = this.textures.get("way_0").getSourceImage();
     const roadScale = (width / texture.width) * 0.25;
     this.gridSize = Math.round(texture.height * roadScale);
-
     this.trackCursor = { x: 0, y: 0, dir: "UP" };
     this.straightPiecesCount = 0;
     this.justTurned = false;
     this.lastTurnDir = "none";
-
     for (let i = 0; i < 20; i++) this.generateTrackPiece();
 
     // NAVE
@@ -63,6 +63,8 @@ export default class Scene0 extends Phaser.Scene {
       .setDepth(9);
     this.carrierTravelDir = "UP";
     this.carrier.lastTurnedPiece = null;
+    this.carrier.setFrame(0);
+    this.worldLayer.add(this.carrier);
 
     // PLAYER (Alien)
     this.player = this.physics.add
@@ -72,45 +74,105 @@ export default class Scene0 extends Phaser.Scene {
     this.playerTravelDir = "UP";
     this.player.lastTurnedPiece = null;
     this.queuedTurn = null;
+    this.worldLayer.add(this.player);
 
     this.speed = 250;
-    this.turnCooldown = 0;
     this.isGameOver = false;
+    this.isManeuvering = false; // Flag que bloqueia a curva durante a manobra
 
-    // Câmera segue o ALIEN
+    // PONTUAÇÃO
+    this.score = 0;
+    this.scoreText = this.add
+      .text(30, 30, "0", {
+        fontSize: "60px",
+        fill: "#ffffff",
+        fontStyle: "bold",
+        stroke: "#000000",
+        strokeThickness: 6,
+        fontFamily: "sans-serif",
+      })
+      .setDepth(100)
+      .setScrollFactor(0);
+
+    // CÂMERAS
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
     this.cameras.main.setFollowOffset(0, height * 0.3);
+    this.cameras.main.ignore(this.scoreText);
 
-    // Controles
+    this.uiCam = this.cameras.add(0, 0, width, height);
+    this.uiCam.ignore([this.bg, this.worldLayer]);
+
+    // CONTROLES REFEITOS (Sem Delay)
     this.animState = "idle";
     this.currentFrame = 0;
+
+    // 1. Ao encostar o dedo: VIRA INSTANTANEAMENTE
     this.input.on("pointerdown", (pointer) => {
       if (this.isGameOver) return;
       this.startY = pointer.y;
+
       const isRight = pointer.x > width / 2;
       this.attemptTurn(isRight ? "RIGHT" : "LEFT");
-      this.animState = isRight ? "right" : "left";
     });
 
-    this.input.on("pointerup", (pointer) => {
-      if (this.isGameOver) return;
+    // 2. Ao arrastar o dedo pela tela: FAZ A MANOBRA
+    this.input.on("pointermove", (pointer) => {
+      if (this.isGameOver || !pointer.isDown || this.isManeuvering) return;
+
       const deltaY = this.startY - pointer.y;
-      if (deltaY > 50) {
-        this.animState = "up";
-        this.upStep = 0;
-      } else if (deltaY < -50) {
-        this.animState = "down";
-        this.downStep = 0;
-      } else {
-        this.animState = "returning";
+
+      // Se arrastou para cima (mais de 40px)
+      if (deltaY > 40) {
+        this.queuedTurn = null; // Cancela a curva imediata
+        this.executeManeuver("up");
+      }
+      // Se arrastou para baixo
+      else if (deltaY < -40) {
+        this.queuedTurn = null; // Cancela a curva imediata
+        this.executeManeuver("down");
       }
     });
 
+    // Loop de animação
     this.time.addEvent({
       delay: 100,
       loop: true,
       callback: () => this.updateAnimation(),
     });
+  }
+
+  executeManeuver(type) {
+    if (this.isManeuvering) return;
+
+    this.isManeuvering = true;
+    this.animState = type;
+    this.upStep = 0;
+    this.downStep = 0;
+
+    // GANHA OS 50 PONTOS AQUI
+    this.score += 50;
+    this.scoreText.setText(this.score.toString());
+
+    if (this.score >= 10000) {
+      this.isGameOver = true;
+      this.scene.start("win");
+    }
+  }
+
+  attemptTurn(turnIntent) {
+    if (this.isManeuvering) return;
+
+    const currentPiece = this.getPieceUnder(this.player);
+    if (
+      currentPiece &&
+      (currentPiece.trackType === "way_left" ||
+        currentPiece.trackType === "way_right")
+    ) {
+      this.queuedTurn = turnIntent;
+      this.animState = turnIntent === "RIGHT" ? "right" : "left"; // Feedbak visual imediato
+    } else {
+      this.triggerFall(turnIntent, "early");
+    }
   }
 
   generateTrackPiece() {
@@ -134,11 +196,11 @@ export default class Scene0 extends Phaser.Scene {
         this.justTurned = true;
       }
     }
-
     const piece = this.add.image(this.trackCursor.x, this.trackCursor.y, type);
     piece.setDisplaySize(this.gridSize, this.gridSize).setDepth(1);
     piece.trackType = type;
     this.roadPieces.push(piece);
+    this.worldLayer.add(piece);
 
     let angle = 0;
     if (this.trackCursor.dir === "UP") {
@@ -188,64 +250,27 @@ export default class Scene0 extends Phaser.Scene {
     piece.setAngle(angle);
   }
 
-  attemptTurn(turnIntent) {
-    const currentPiece = this.getPieceUnder(this.player);
-    if (
-      currentPiece &&
-      (currentPiece.trackType === "way_left" ||
-        currentPiece.trackType === "way_right")
-    ) {
-      this.queuedTurn = turnIntent;
-    } else {
-      // Virou na reta! Alien se joga pro lado e cai da nave.
-      this.triggerFall(turnIntent, "early");
-    }
-  }
-
   triggerFall(direction, type) {
     if (this.isGameOver) return;
     this.isGameOver = true;
+    this.player.setFrame(direction === "LEFT" ? 5 : 6);
+    this.player.setVelocity(0, 0);
 
-    // Frame 5 = esquerda, Frame 6 = direita
-    const fallFrame = direction === "LEFT" ? 5 : 6;
-    this.player.setFrame(fallFrame);
+    let vx = 0,
+      vy = 0;
+    if (this.playerTravelDir === "UP") vy = -this.speed;
+    else if (this.playerTravelDir === "DOWN") vy = this.speed;
+    else if (this.playerTravelDir === "RIGHT") vx = this.speed;
+    else if (this.playerTravelDir === "LEFT") vx = -this.speed;
 
-    // FÍSICA DE SEPARAÇÃO: Desgruda o alien da nave
-    if (type === "early") {
-      // Se tentou virar na reta, ele pula pro lado (mantendo o impulso para frente)
-      let vx = 0,
-        vy = 0;
-      if (this.playerTravelDir === "UP") {
-        vx = direction === "LEFT" ? -this.speed : this.speed;
-        vy = -this.speed;
-      } else if (this.playerTravelDir === "DOWN") {
-        vx = direction === "LEFT" ? this.speed : -this.speed;
-        vy = this.speed;
-      } else if (this.playerTravelDir === "RIGHT") {
-        vy = direction === "LEFT" ? -this.speed : this.speed;
-        vx = this.speed;
-      } else if (this.playerTravelDir === "LEFT") {
-        vy = direction === "LEFT" ? this.speed : -this.speed;
-        vx = -this.speed;
-      }
-
-      this.player.setVelocity(vx, vy);
+    if (direction === "LEFT") {
+      vx -= 100;
     } else {
-      // Se passou direto da curva ("missed"), ele só continua reto com a velocidade que já tinha
-      let vx = 0,
-        vy = 0;
-      if (this.playerTravelDir === "UP") vy = -this.speed;
-      else if (this.playerTravelDir === "DOWN") vy = this.speed;
-      else if (this.playerTravelDir === "RIGHT") vx = this.speed;
-      else if (this.playerTravelDir === "LEFT") vx = -this.speed;
-
-      this.player.setVelocity(vx, vy);
+      vx += 100;
     }
 
-    // Dá 1 segundo pra você ver ele voar pelo espaço pra fora da tela, e reinicia
-    this.time.delayedCall(1000, () => {
-      this.scene.restart();
-    });
+    this.player.setVelocity(vx, vy);
+    this.time.delayedCall(1000, () => this.scene.start("gameover"));
   }
 
   updateCameraRotation() {
@@ -260,12 +285,10 @@ export default class Scene0 extends Phaser.Scene {
       Math.sin(targetAngle - currentRad),
       Math.cos(targetAngle - currentRad),
     );
-
     this.tweens.add({
       targets: this.cameras.main,
       rotation: currentRad + diff,
       duration: 250,
-      ease: "Sine.easeInOut",
     });
 
     let offX = 0,
@@ -315,7 +338,6 @@ export default class Scene0 extends Phaser.Scene {
     const dirs = { UP: [0, -1], DOWN: [0, 1], LEFT: [-1, 0], RIGHT: [1, 0] };
 
     if (!this.isGameOver) {
-      // Funcionamento normal: os dois andam juntos
       this.carrier.setVelocity(
         dirs[this.carrierTravelDir][0] * this.speed,
         dirs[this.carrierTravelDir][1] * this.speed,
@@ -325,15 +347,13 @@ export default class Scene0 extends Phaser.Scene {
         dirs[this.playerTravelDir][1] * this.speed,
       );
     } else {
-      // GAME OVER: A nave continua seu caminho, mas o alien fica livre voando para o espaço com a física do triggerFall!
       this.carrier.setVelocity(
         dirs[this.carrierTravelDir][0] * this.speed,
         dirs[this.carrierTravelDir][1] * this.speed,
       );
-      return; // Interrompe o resto da lógica para ele não tentar seguir curvas
+      return;
     }
 
-    // Lógica de Curva da Nave
     const cp = this.getPieceUnder(this.carrier);
     if (cp && cp !== this.carrier.lastTurnedPiece && cp.trackType !== "way_0") {
       let passed = false;
@@ -348,8 +368,6 @@ export default class Scene0 extends Phaser.Scene {
 
       if (passed) {
         const req = cp.trackType === "way_right" ? "RIGHT" : "LEFT";
-
-        // Nave vira
         const nextDirs = {
           UP: { RIGHT: "RIGHT", LEFT: "LEFT" },
           RIGHT: { RIGHT: "DOWN", LEFT: "UP" },
@@ -359,23 +377,23 @@ export default class Scene0 extends Phaser.Scene {
         this.carrierTravelDir = nextDirs[this.carrierTravelDir][req];
         this.carrier.setPosition(cp.x, cp.y);
         this.carrier.lastTurnedPiece = cp;
+        this.carrier.setFrame(req === "LEFT" ? 1 : 3);
+        this.time.delayedCall(250, () => {
+          if (this.carrier) this.carrier.setFrame(0);
+        });
         this.updateCameraRotation();
 
-        // Alien acompanha ou toma Game Over
         if (this.queuedTurn === req) {
           this.playerTravelDir = this.carrierTravelDir;
           this.player.setPosition(this.carrier.x, this.carrier.y);
           this.player.setAngle(this.carrier.angle);
           this.queuedTurn = null;
-          this.turnCooldown = 300;
         } else {
-          // Nave virou, alien passou reto. Saiu de cima da nave!
           this.triggerFall(req, "missed");
         }
       }
     }
 
-    // Gerador infinito
     const head = this.roadPieces[this.roadPieces.length - 1];
     if (
       head &&
@@ -388,9 +406,7 @@ export default class Scene0 extends Phaser.Scene {
     )
       this.generateTrackPiece();
     if (this.roadPieces.length > 40) this.roadPieces.shift().destroy();
-    if (this.turnCooldown > 0) this.turnCooldown -= delta;
 
-    // Fallback: caiu da estrada
     if (!this.getPieceUnder(this.player)) {
       this.triggerFall(
         this.playerTravelDir === "LEFT" ? "LEFT" : "RIGHT",
@@ -400,8 +416,7 @@ export default class Scene0 extends Phaser.Scene {
   }
 
   updateAnimation() {
-    if (this.isGameOver) return; // Congela o sprite no frame de queda
-
+    if (this.isGameOver) return;
     const anims = {
       left: [1, 2],
       right: [3, 4],
@@ -409,24 +424,35 @@ export default class Scene0 extends Phaser.Scene {
       down: [10, 11, 10, 0],
     };
 
+    // Animação de Curva Instantânea
     if (this.animState === "left" || this.animState === "right") {
       this.currentFrame =
         anims[this.animState][
           this.currentFrame === anims[this.animState][0] ? 1 : 0
         ];
-    } else if (this.animState === "up" || this.animState === "down") {
-      this.currentFrame =
-        anims[this.animState][this.upStep || this.downStep || 0];
-      if (this.animState === "up") {
-        this.upStep++;
-        if (this.upStep >= 6) this.animState = "idle";
-      } else {
-        this.downStep++;
-        if (this.downStep >= 4) this.animState = "idle";
+
+      // Se a curva já foi concluída e resetada na atualização do jogo, o alien volta a ficar reto
+      if (!this.queuedTurn) this.animState = "idle";
+    }
+    // Animação de Pulo
+    else if (this.animState === "up") {
+      this.currentFrame = anims.up[this.upStep];
+      this.upStep++;
+      if (this.upStep >= 6) {
+        this.animState = "idle";
+        this.isManeuvering = false; // MANOBRA FINALIZADA (Liberado para virar)
       }
-    } else if (this.animState === "returning") {
-      this.currentFrame = 0;
-      this.animState = "idle";
+    }
+    // Animação de Agachamento
+    else if (this.animState === "down") {
+      this.currentFrame = anims.down[this.downStep];
+      this.downStep++;
+      if (this.downStep >= 4) {
+        this.animState = "idle";
+        this.isManeuvering = false; // MANOBRA FINALIZADA (Liberado para virar)
+      }
+    } else {
+      this.currentFrame = 0; // Volta ao estado neutro
     }
     this.player.setFrame(this.currentFrame);
   }
