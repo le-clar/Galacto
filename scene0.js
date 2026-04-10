@@ -14,36 +14,44 @@ export default class Scene0 extends Phaser.Scene {
     this.load.image("way_l", "assets/way_l.png");
     this.load.image("way_r", "assets/way_r.png");
 
-    // Apenas 1 imagem para a nova spaceship
     this.load.image("spaceship_new", "assets/spaceship_new.png");
-
-    this.load.tilemapTiledJSON("map", "assets/map.json");
-    this.load.image("celestial-objects", "assets/celestial-objects.png");
   }
 
   create() {
     const { width, height } = this.scale;
     this.worldLayer = this.add.group();
 
+    // Cor do céu
+    this.cameras.main.setBackgroundColor(0x080a29);
+
+    // Geração do padrão de estrelas
+    const graphics = this.make.graphics({ x: 0, y: 0, add: false });
+    graphics.fillStyle(0xffffff, 0.8);
+    for (let i = 0; i < 200; i++) {
+      graphics.fillCircle(
+        Phaser.Math.Between(0, 512),
+        Phaser.Math.Between(0, 512),
+        Math.random() * 2,
+      );
+    }
+    graphics.generateTexture("starfield", 512, 512);
+
+    // Mosaico de estrelas gigante para cobrir toda a tela mesmo quando a câmera girar
+    const maxDim = Math.max(width, height) * 1.5;
+    this.bgStars = this.add
+      .tileSprite(width / 2, height / 2, maxDim, maxDim, "starfield")
+      .setScrollFactor(0)
+      .setDepth(-4);
+
+    // Logo levemente transparente no fundo
     this.bg = this.add
       .image(width / 2, height / 2, "logo")
       .setScrollFactor(0)
-      .setDepth(-3);
+      .setDepth(-3)
+      .setAlpha(0.2);
     this.bg.setScale(
       Math.max(width / this.bg.width, height / this.bg.height) * 1.3,
     );
-
-    const map = this.make.tilemap({ key: "map" });
-    const tileset = map.addTilesetImage(
-      "celestial-objects",
-      "celestial-objects",
-    );
-    this.mapLayer = map
-      .createLayer("elementos", tileset, -width, -height)
-      .setDepth(-1)
-      .setScrollFactor(0.2)
-      .setScale(2);
-    this.worldLayer.add(this.mapLayer);
 
     this.roadPieces = [];
     const texture = this.textures.get("way_f").getSourceImage();
@@ -57,8 +65,8 @@ export default class Scene0 extends Phaser.Scene {
     this.lastTurnDir = "none";
     for (let i = 0; i < 20; i++) this.generateTrackPiece();
 
-    // --- MUDANÇA: Nave um pouquinho menor (70% do tamanho da grelha em vez de 90%) ---
     this.carrier = this.physics.add.sprite(0, 0, "spaceship_new").setDepth(9);
+    // Nave menor (70% da pista)
     const shipScale = (this.gridSize / this.carrier.width) * 0.7;
     this.carrier.setScale(shipScale);
 
@@ -98,7 +106,7 @@ export default class Scene0 extends Phaser.Scene {
     this.cameras.main.ignore(this.scoreText);
 
     this.uiCam = this.cameras.add(0, 0, width, height);
-    this.uiCam.ignore([this.bg, this.worldLayer]);
+    this.uiCam.ignore([this.bg, this.bgStars, this.worldLayer]);
 
     this.animState = "idle";
     this.currentFrame = 0;
@@ -306,7 +314,7 @@ export default class Scene0 extends Phaser.Scene {
         this.trackCursor.x -= this.gridSize;
       } else if (type === "way_l") {
         this.trackCursor.dir = "DOWN";
-        this.trackCursor.y += this.gridSize;
+        this.trackCursor.y -= this.gridSize;
       } else {
         this.trackCursor.dir = "UP";
         this.trackCursor.y -= this.gridSize;
@@ -414,6 +422,10 @@ export default class Scene0 extends Phaser.Scene {
     if (!this.isFalling) {
       this.player.setPosition(this.carrier.x, this.carrier.y);
     }
+
+    // Faz as estrelas deslizarem suavemente junto com a câmera
+    this.bgStars.tilePositionX = this.cameras.main.scrollX * 0.05;
+    this.bgStars.tilePositionY = this.cameras.main.scrollY * 0.05;
 
     if (this.isGameOver) return;
 
