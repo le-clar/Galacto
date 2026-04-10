@@ -10,15 +10,13 @@ export default class Scene0 extends Phaser.Scene {
       frameHeight: 32,
     });
 
-    // --- MUDANÇA DE VISUAL DAS ESTRADAS NO PRELOAD ---
-    this.load.image("way_f", "assets/way_f.png"); // Antigo way_0
-    this.load.image("way_l", "assets/way_l.png"); // Antigo way_left
-    this.load.image("way_r", "assets/way_r.png"); // Antigo way_right
+    this.load.image("way_f", "assets/way_f.png");
+    this.load.image("way_l", "assets/way_l.png");
+    this.load.image("way_r", "assets/way_r.png");
 
-    this.load.spritesheet("spaceship", "assets/spaceship.png", {
-      frameWidth: 32,
-      frameHeight: 32,
-    });
+    // Apenas 1 imagem para a nova spaceship
+    this.load.image("spaceship_new", "assets/spaceship_new.png");
+
     this.load.tilemapTiledJSON("map", "assets/map.json");
     this.load.image("celestial-objects", "assets/celestial-objects.png");
   }
@@ -48,9 +46,9 @@ export default class Scene0 extends Phaser.Scene {
     this.worldLayer.add(this.mapLayer);
 
     this.roadPieces = [];
-    // --- MUDANÇA: Usando a textura way_f para calcular o grid ---
     const texture = this.textures.get("way_f").getSourceImage();
-    const roadScale = (width / texture.width) * 0.25;
+
+    const roadScale = (width / texture.width) * 0.4;
     this.gridSize = Math.round(texture.height * roadScale);
 
     this.trackCursor = { x: 0, y: 0, dir: "UP" };
@@ -59,13 +57,13 @@ export default class Scene0 extends Phaser.Scene {
     this.lastTurnDir = "none";
     for (let i = 0; i < 20; i++) this.generateTrackPiece();
 
-    this.carrier = this.physics.add
-      .sprite(0, 0, "spaceship")
-      .setScale(5)
-      .setDepth(9);
+    // --- MUDANÇA: Nave um pouquinho menor (70% do tamanho da grelha em vez de 90%) ---
+    this.carrier = this.physics.add.sprite(0, 0, "spaceship_new").setDepth(9);
+    const shipScale = (this.gridSize / this.carrier.width) * 0.7;
+    this.carrier.setScale(shipScale);
+
     this.carrierTravelDir = "UP";
     this.carrier.lastTurnedPiece = null;
-    this.carrier.setFrame(0);
     this.worldLayer.add(this.carrier);
 
     this.player = this.physics.add
@@ -104,6 +102,7 @@ export default class Scene0 extends Phaser.Scene {
 
     this.animState = "idle";
     this.currentFrame = 0;
+    this.turnStep = 0;
 
     // CONTROLES
     this.input.on("pointerdown", (pointer) => {
@@ -146,7 +145,13 @@ export default class Scene0 extends Phaser.Scene {
     });
   }
 
-  // --- LOGICA DE triggerFall (frame config permanece igual pois refere-se ao spritesheet do alien) ---
+  getCarrierBaseRotation() {
+    if (this.carrierTravelDir === "RIGHT") return Math.PI / 2;
+    if (this.carrierTravelDir === "DOWN") return Math.PI;
+    if (this.carrierTravelDir === "LEFT") return -Math.PI / 2;
+    return 0;
+  }
+
   triggerFall(direction) {
     if (this.isGameOver) return;
     this.isGameOver = true;
@@ -157,7 +162,6 @@ export default class Scene0 extends Phaser.Scene {
       RIGHT: { frames: [3, 4, 6], impulse: 250 },
     };
     const config = animConfig[direction];
-
     const frameDelay = 120;
 
     this.time.delayedCall(0, () => {
@@ -196,13 +200,11 @@ export default class Scene0 extends Phaser.Scene {
     if (this.isManeuvering || this.isGameOver) return;
     const currentPiece = this.getPieceUnder(this.carrier);
 
-    // --- MUDANÇA: Verificando tipo way_f ---
     if (currentPiece && currentPiece.trackType === "way_f") {
       this.triggerFall(turnIntent);
       return;
     }
 
-    // --- MUDANÇA: Verificando tipos way_l e way_r ---
     if (
       currentPiece &&
       (currentPiece.trackType === "way_l" || currentPiece.trackType === "way_r")
@@ -212,6 +214,22 @@ export default class Scene0 extends Phaser.Scene {
         this.queuedTurn = turnIntent;
         this.animState = turnIntent === "RIGHT" ? "right" : "left";
         this.turnStep = 0;
+
+        const tilt = turnIntent === "RIGHT" ? Math.PI / 4 : -Math.PI / 4;
+        const targetRad = this.getCarrierBaseRotation() + tilt;
+        const currentRad = this.carrier.rotation;
+
+        const diff = Math.atan2(
+          Math.sin(targetRad - currentRad),
+          Math.cos(targetRad - currentRad),
+        );
+
+        this.tweens.killTweensOf(this.carrier);
+        this.tweens.add({
+          targets: this.carrier,
+          rotation: currentRad + diff,
+          duration: 150,
+        });
       } else {
         this.triggerFall(turnIntent);
       }
@@ -234,7 +252,6 @@ export default class Scene0 extends Phaser.Scene {
   }
 
   generateTrackPiece() {
-    // --- MUDANÇA: Nomes novos na lógica de geração ---
     let type = "way_f";
     if (this.justTurned) {
       type = "way_f";
@@ -243,7 +260,6 @@ export default class Scene0 extends Phaser.Scene {
     } else {
       this.straightPiecesCount++;
       if (this.straightPiecesCount > 4 && Math.random() < 0.3) {
-        // Escolhe entre way_r e way_l
         type =
           this.lastTurnDir === "left"
             ? "way_r"
@@ -262,7 +278,6 @@ export default class Scene0 extends Phaser.Scene {
     this.roadPieces.push(piece);
     this.worldLayer.add(piece);
 
-    // --- MUDANÇA: Lógica de cursor usando nomes novos ---
     let angle = 0;
     if (this.trackCursor.dir === "UP") {
       if (type === "way_f") {
@@ -273,7 +288,7 @@ export default class Scene0 extends Phaser.Scene {
       } else {
         this.trackCursor.dir = "RIGHT";
         this.trackCursor.x += this.gridSize;
-      } // way_r
+      }
     } else if (this.trackCursor.dir === "RIGHT") {
       angle = 90;
       if (type === "way_f") {
@@ -284,7 +299,7 @@ export default class Scene0 extends Phaser.Scene {
       } else {
         this.trackCursor.dir = "DOWN";
         this.trackCursor.y += this.gridSize;
-      } // way_r
+      }
     } else if (this.trackCursor.dir === "LEFT") {
       angle = -90;
       if (type === "way_f") {
@@ -295,7 +310,7 @@ export default class Scene0 extends Phaser.Scene {
       } else {
         this.trackCursor.dir = "UP";
         this.trackCursor.y -= this.gridSize;
-      } // way_r
+      }
     } else if (this.trackCursor.dir === "DOWN") {
       angle = 180;
       if (type === "way_f") {
@@ -306,28 +321,26 @@ export default class Scene0 extends Phaser.Scene {
       } else {
         this.trackCursor.dir = "LEFT";
         this.trackCursor.x -= this.gridSize;
-      } // way_r
+      }
     }
     piece.setAngle(angle);
   }
 
-  // updateCameraRotation e getPieceUnder permanecem iguais, operam sobre objetos já criados
-
   updateCameraRotation() {
-    let targetAngle = 0;
-    if (this.carrierTravelDir === "UP") targetAngle = 0;
-    else if (this.carrierTravelDir === "RIGHT") targetAngle = -Math.PI / 2;
-    else if (this.carrierTravelDir === "DOWN") targetAngle = -Math.PI;
-    else if (this.carrierTravelDir === "LEFT") targetAngle = Math.PI / 2;
+    let camTargetAngle = 0;
+    if (this.carrierTravelDir === "UP") camTargetAngle = 0;
+    else if (this.carrierTravelDir === "RIGHT") camTargetAngle = -Math.PI / 2;
+    else if (this.carrierTravelDir === "DOWN") camTargetAngle = -Math.PI;
+    else if (this.carrierTravelDir === "LEFT") camTargetAngle = Math.PI / 2;
 
-    const currentRad = this.cameras.main.rotation;
-    let diff = Math.atan2(
-      Math.sin(targetAngle - currentRad),
-      Math.cos(targetAngle - currentRad),
+    const currentCamRad = this.cameras.main.rotation;
+    let camDiff = Math.atan2(
+      Math.sin(camTargetAngle - currentCamRad),
+      Math.cos(camTargetAngle - currentCamRad),
     );
     this.tweens.add({
       targets: this.cameras.main,
-      rotation: currentRad + diff,
+      rotation: currentCamRad + camDiff,
       duration: 250,
     });
 
@@ -345,15 +358,32 @@ export default class Scene0 extends Phaser.Scene {
       y: offY,
       duration: 250,
     });
-    this.carrier.setAngle(
-      this.carrierTravelDir === "RIGHT"
-        ? 90
-        : this.carrierTravelDir === "DOWN"
-          ? 180
-          : this.carrierTravelDir === "LEFT"
-            ? -90
-            : 0,
+
+    const carrierTargetRad = this.getCarrierBaseRotation();
+    const currentCarrierRad = this.carrier.rotation;
+    let carrierDiff = Math.atan2(
+      Math.sin(carrierTargetRad - currentCarrierRad),
+      Math.cos(carrierTargetRad - currentCarrierRad),
     );
+
+    this.tweens.killTweensOf(this.carrier);
+    this.tweens.add({
+      targets: this.carrier,
+      rotation: currentCarrierRad + carrierDiff,
+      duration: 250,
+    });
+
+    const currentPlayerRad = this.player.rotation;
+    let playerDiff = Math.atan2(
+      Math.sin(carrierTargetRad - currentPlayerRad),
+      Math.cos(carrierTargetRad - currentPlayerRad),
+    );
+    this.tweens.killTweensOf(this.player);
+    this.tweens.add({
+      targets: this.player,
+      rotation: currentPlayerRad + playerDiff,
+      duration: 250,
+    });
   }
 
   getPieceUnder(target) {
@@ -389,7 +419,6 @@ export default class Scene0 extends Phaser.Scene {
 
     const cp = this.getPieceUnder(this.carrier);
 
-    // --- MUDANÇA: Lógica de curva da nave usando nomes novos ---
     if (cp && cp !== this.carrier.lastTurnedPiece && cp.trackType !== "way_f") {
       let passed = false;
       if (this.carrierTravelDir === "UP" && this.carrier.y <= cp.y)
@@ -413,15 +442,11 @@ export default class Scene0 extends Phaser.Scene {
         this.carrierTravelDir = nextDirs[this.carrierTravelDir][req];
         this.carrier.setPosition(cp.x, cp.y);
         this.carrier.lastTurnedPiece = cp;
-        this.carrier.setFrame(req === "LEFT" ? 1 : 3);
-        this.time.delayedCall(250, () => {
-          if (this.carrier) this.carrier.setFrame(0);
-        });
+
         this.updateCameraRotation();
 
         if (this.queuedTurn === req && !this.isManeuvering) {
           this.playerTravelDir = this.carrierTravelDir;
-          this.player.setAngle(this.carrier.angle);
           this.queuedTurn = null;
         } else {
           this.triggerFall(req);
@@ -448,7 +473,7 @@ export default class Scene0 extends Phaser.Scene {
   }
 
   updateAnimation() {
-    if (this.isFalling) return;
+    if (this.animState === "falling_sequence") return;
 
     const anims = {
       left: [1, 2],
@@ -458,11 +483,14 @@ export default class Scene0 extends Phaser.Scene {
     };
 
     if (this.animState === "left" || this.animState === "right") {
-      this.currentFrame =
-        anims[this.animState][
-          this.currentFrame === anims[this.animState][0] ? 1 : 0
-        ];
-      if (!this.queuedTurn) this.animState = "idle";
+      const frames = anims[this.animState];
+      if (this.turnStep < frames.length) {
+        this.currentFrame = frames[this.turnStep];
+        this.turnStep++;
+      }
+      if (!this.queuedTurn) {
+        this.animState = "idle";
+      }
     } else if (this.animState === "up") {
       this.currentFrame = anims.up[this.upStep];
       this.upStep++;
