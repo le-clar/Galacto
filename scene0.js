@@ -15,9 +15,11 @@ export default class Scene0 extends Phaser.Scene {
     this.load.image("way_r", "assets/way_r.png");
 
     this.load.image("spaceship_new", "assets/spaceship_new.png");
-
-    // --- MUDANÇA: Carregando o efeito sonoro ---
     this.load.audio("swoosh", "assets/swoosh.mp3");
+
+    this.load.image("aster_1", "assets/aster_1.png");
+    this.load.image("aster_2", "assets/aster_2.png");
+    this.load.image("aster_3", "assets/aster_3.png");
   }
 
   create() {
@@ -39,14 +41,13 @@ export default class Scene0 extends Phaser.Scene {
     }
     graphics.generateTexture("starfield", 512, 512);
 
-    // Mosaico de estrelas gigante para cobrir toda a tela mesmo quando a câmera girar
+    // Mosaico de estrelas gigante
     const maxDim = Math.max(width, height) * 1.5;
     this.bgStars = this.add
       .tileSprite(width / 2, height / 2, maxDim, maxDim, "starfield")
       .setScrollFactor(0)
       .setDepth(-4);
 
-    // Logo levemente transparente no fundo
     this.bg = this.add
       .image(width / 2, height / 2, "logo")
       .setScrollFactor(0)
@@ -57,8 +58,9 @@ export default class Scene0 extends Phaser.Scene {
     );
 
     this.roadPieces = [];
-    const texture = this.textures.get("way_f").getSourceImage();
+    this.asteroids = [];
 
+    const texture = this.textures.get("way_f").getSourceImage();
     const roadScale = (width / texture.width) * 0.4;
     this.gridSize = Math.round(texture.height * roadScale);
 
@@ -69,7 +71,6 @@ export default class Scene0 extends Phaser.Scene {
     for (let i = 0; i < 20; i++) this.generateTrackPiece();
 
     this.carrier = this.physics.add.sprite(0, 0, "spaceship_new").setDepth(9);
-    // Nave menor (70% da pista)
     const shipScale = (this.gridSize / this.carrier.width) * 0.7;
     this.carrier.setScale(shipScale);
 
@@ -154,6 +155,52 @@ export default class Scene0 extends Phaser.Scene {
       loop: true,
       callback: () => this.updateAnimation(),
     });
+  }
+
+  // --- MUDANÇA: Função atualizada para gerar MUITO MAIS asteroides ---
+  spawnAsteroidNear(x, y) {
+    // Tenta gerar até 5 asteroides em volta de cada pedaço de pista novo
+    for (let i = 0; i < 5; i++) {
+      // Agora com 80% de probabilidade de tentar criar o asteroide (antes era 50%)
+      if (Math.random() > 0.8) continue;
+
+      const types = ["aster_1", "aster_2", "aster_3"];
+      const type = Phaser.Math.RND.pick(types);
+
+      // Aumentámos o raio máximo (de 4 para 6) para haver mais espaço para eles nascerem sem tocarem na pista
+      const radius = Phaser.Math.Between(
+        this.gridSize * 1.5,
+        this.gridSize * 6,
+      );
+      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+
+      const spawnX = x + Math.cos(angle) * radius;
+      const spawnY = y + Math.sin(angle) * radius;
+
+      // O RADAR: Verifica se está muito perto da pista
+      let tooClose = false;
+      for (const piece of this.roadPieces) {
+        if (
+          Phaser.Math.Distance.Between(spawnX, spawnY, piece.x, piece.y) <
+          this.gridSize * 0.9
+        ) {
+          tooClose = true;
+          break;
+        }
+      }
+
+      // Se o local for seguro, coloca o asteroide
+      if (!tooClose) {
+        const aster = this.add.image(spawnX, spawnY, type);
+        // Também lhes dei um pouco mais de variedade de tamanho (de 1.5 a 3.5)
+        aster.setScale(Phaser.Math.FloatBetween(1.5, 3.5));
+        aster.setRotation(Phaser.Math.FloatBetween(0, Math.PI * 2));
+        aster.setDepth(0);
+
+        this.asteroids.push(aster);
+        this.worldLayer.add(aster);
+      }
+    }
   }
 
   getCarrierBaseRotation() {
@@ -288,6 +335,8 @@ export default class Scene0 extends Phaser.Scene {
     piece.trackType = type;
     this.roadPieces.push(piece);
     this.worldLayer.add(piece);
+
+    this.spawnAsteroidNear(piece.x, piece.y);
 
     let angle = 0;
     if (this.trackCursor.dir === "UP") {
@@ -426,7 +475,6 @@ export default class Scene0 extends Phaser.Scene {
       this.player.setPosition(this.carrier.x, this.carrier.y);
     }
 
-    // Faz as estrelas deslizarem suavemente junto com a câmera
     this.bgStars.tilePositionX = this.cameras.main.scrollX * 0.05;
     this.bgStars.tilePositionY = this.cameras.main.scrollY * 0.05;
 
@@ -458,9 +506,7 @@ export default class Scene0 extends Phaser.Scene {
         this.carrier.setPosition(cp.x, cp.y);
         this.carrier.lastTurnedPiece = cp;
 
-        // --- MUDANÇA: Toca o som exato no momento em que a nave vira na curva ---
         this.sound.play("swoosh");
-
         this.updateCameraRotation();
 
         if (this.queuedTurn === req && !this.isManeuvering) {
@@ -481,9 +527,29 @@ export default class Scene0 extends Phaser.Scene {
         head.x,
         head.y,
       ) < 1500
-    )
+    ) {
       this.generateTrackPiece();
+    }
+
     if (this.roadPieces.length > 40) this.roadPieces.shift().destroy();
+
+    // Limpeza dos asteroides velhos para não sobrecarregar a memória do jogo
+    while (this.asteroids.length > 0) {
+      const oldestAster = this.asteroids[0];
+      if (
+        Phaser.Math.Distance.Between(
+          this.carrier.x,
+          this.carrier.y,
+          oldestAster.x,
+          oldestAster.y,
+        ) > 2500
+      ) {
+        oldestAster.destroy();
+        this.asteroids.shift();
+      } else {
+        break;
+      }
+    }
 
     if (!this.getPieceUnder(this.carrier)) {
       this.triggerFall(this.playerTravelDir === "LEFT" ? "LEFT" : "RIGHT");
