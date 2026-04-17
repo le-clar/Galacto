@@ -15,6 +15,9 @@ export default class Scene0 extends Phaser.Scene {
     this.load.image("way_r", "assets/way_r.png");
 
     this.load.image("spaceship_new", "assets/spaceship_new.png");
+
+    // --- MUDANÇA: Carregando o efeito sonoro ---
+    this.load.audio("swoosh", "assets/swoosh.mp3");
   }
 
   create() {
@@ -454,6 +457,9 @@ export default class Scene0 extends Phaser.Scene {
         this.carrierTravelDir = nextDirs[this.carrierTravelDir][req];
         this.carrier.setPosition(cp.x, cp.y);
         this.carrier.lastTurnedPiece = cp;
+
+        // --- MUDANÇA: Toca o som exato no momento em que a nave vira na curva ---
+        this.sound.play("swoosh");
 
         this.updateCameraRotation();
 
