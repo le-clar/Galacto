@@ -26,10 +26,8 @@ export default class Scene0 extends Phaser.Scene {
     const { width, height } = this.scale;
     this.worldLayer = this.add.group();
 
-    // Cor do céu
     this.cameras.main.setBackgroundColor(0x080a29);
 
-    // Geração do padrão de estrelas
     const graphics = this.make.graphics({ x: 0, y: 0, add: false });
     graphics.fillStyle(0xffffff, 0.8);
     for (let i = 0; i < 200; i++) {
@@ -41,7 +39,6 @@ export default class Scene0 extends Phaser.Scene {
     }
     graphics.generateTexture("starfield", 512, 512);
 
-    // Mosaico de estrelas gigante
     const maxDim = Math.max(width, height) * 1.5;
     this.bgStars = this.add
       .tileSprite(width / 2, height / 2, maxDim, maxDim, "starfield")
@@ -68,6 +65,9 @@ export default class Scene0 extends Phaser.Scene {
     this.straightPiecesCount = 0;
     this.justTurned = false;
     this.lastTurnDir = "none";
+
+    this.speed = 250;
+
     for (let i = 0; i < 20; i++) this.generateTrackPiece();
 
     this.carrier = this.physics.add.sprite(0, 0, "spaceship_new").setDepth(9);
@@ -86,7 +86,6 @@ export default class Scene0 extends Phaser.Scene {
     this.queuedTurn = null;
     this.worldLayer.add(this.player);
 
-    this.speed = 250;
     this.isGameOver = false;
     this.isManeuvering = false;
     this.isFalling = false;
@@ -116,7 +115,6 @@ export default class Scene0 extends Phaser.Scene {
     this.currentFrame = 0;
     this.turnStep = 0;
 
-    // CONTROLES
     this.input.on("pointerdown", (pointer) => {
       if (this.isGameOver) return;
       this.touchActive = true;
@@ -157,17 +155,13 @@ export default class Scene0 extends Phaser.Scene {
     });
   }
 
-  // --- MUDANÇA: Função atualizada para gerar MUITO MAIS asteroides ---
   spawnAsteroidNear(x, y) {
-    // Tenta gerar até 5 asteroides em volta de cada pedaço de pista novo
     for (let i = 0; i < 5; i++) {
-      // Agora com 80% de probabilidade de tentar criar o asteroide (antes era 50%)
       if (Math.random() > 0.8) continue;
 
       const types = ["aster_1", "aster_2", "aster_3"];
       const type = Phaser.Math.RND.pick(types);
 
-      // Aumentámos o raio máximo (de 4 para 6) para haver mais espaço para eles nascerem sem tocarem na pista
       const radius = Phaser.Math.Between(
         this.gridSize * 1.5,
         this.gridSize * 6,
@@ -177,7 +171,6 @@ export default class Scene0 extends Phaser.Scene {
       const spawnX = x + Math.cos(angle) * radius;
       const spawnY = y + Math.sin(angle) * radius;
 
-      // O RADAR: Verifica se está muito perto da pista
       let tooClose = false;
       for (const piece of this.roadPieces) {
         if (
@@ -189,13 +182,15 @@ export default class Scene0 extends Phaser.Scene {
         }
       }
 
-      // Se o local for seguro, coloca o asteroide
       if (!tooClose) {
         const aster = this.add.image(spawnX, spawnY, type);
-        // Também lhes dei um pouco mais de variedade de tamanho (de 1.5 a 3.5)
         aster.setScale(Phaser.Math.FloatBetween(1.5, 3.5));
         aster.setRotation(Phaser.Math.FloatBetween(0, Math.PI * 2));
         aster.setDepth(0);
+
+        aster.rotSpeed = Phaser.Math.FloatBetween(-0.5, 0.5);
+        aster.driftX = Phaser.Math.FloatBetween(-15, 15);
+        aster.driftY = Phaser.Math.FloatBetween(-15, 15);
 
         this.asteroids.push(aster);
         this.worldLayer.add(aster);
@@ -282,11 +277,12 @@ export default class Scene0 extends Phaser.Scene {
           Math.cos(targetRad - currentRad),
         );
 
+        const tweenDur = Math.max(80, 150 - (this.speed - 250) * 0.1);
         this.tweens.killTweensOf(this.carrier);
         this.tweens.add({
           targets: this.carrier,
           rotation: currentRad + diff,
-          duration: 150,
+          duration: tweenDur,
         });
       } else {
         this.triggerFall(turnIntent);
@@ -303,7 +299,9 @@ export default class Scene0 extends Phaser.Scene {
     this.queuedTurn = null;
     this.score += 50;
     this.scoreText.setText(this.score.toString());
-    if (this.score >= 10000) {
+
+    // --- MUDANÇA: Pontuação para vencer reduzida de 10000 para 5000 ---
+    if (this.score >= 5000) {
       this.isGameOver = true;
       this.scene.start("win");
     }
@@ -311,13 +309,24 @@ export default class Scene0 extends Phaser.Scene {
 
   generateTrackPiece() {
     let type = "way_f";
+
+    let minStraights = 4;
+    if (this.speed > 350) minStraights = 3;
+    if (this.speed > 450) minStraights = 2;
+    if (this.speed > 550) minStraights = 1;
+
+    let curveChance = 0.3 + (this.speed - 250) / 1000;
+
     if (this.justTurned) {
       type = "way_f";
       this.justTurned = false;
       this.straightPiecesCount = 1;
     } else {
       this.straightPiecesCount++;
-      if (this.straightPiecesCount > 4 && Math.random() < 0.3) {
+      if (
+        this.straightPiecesCount > minStraights &&
+        Math.random() < curveChance
+      ) {
         type =
           this.lastTurnDir === "left"
             ? "way_r"
@@ -330,6 +339,7 @@ export default class Scene0 extends Phaser.Scene {
         this.justTurned = true;
       }
     }
+
     const piece = this.add.image(this.trackCursor.x, this.trackCursor.y, type);
     piece.setDisplaySize(this.gridSize, this.gridSize).setDepth(1);
     piece.trackType = type;
@@ -398,10 +408,13 @@ export default class Scene0 extends Phaser.Scene {
       Math.sin(camTargetAngle - currentCamRad),
       Math.cos(camTargetAngle - currentCamRad),
     );
+
+    const camDur = Math.max(120, 250 - (this.speed - 250) * 0.2);
+
     this.tweens.add({
       targets: this.cameras.main,
       rotation: currentCamRad + camDiff,
-      duration: 250,
+      duration: camDur,
     });
 
     let offX = 0,
@@ -416,7 +429,7 @@ export default class Scene0 extends Phaser.Scene {
       targets: this.cameras.main.followOffset,
       x: offX,
       y: offY,
-      duration: 250,
+      duration: camDur,
     });
 
     const carrierTargetRad = this.getCarrierBaseRotation();
@@ -430,7 +443,7 @@ export default class Scene0 extends Phaser.Scene {
     this.tweens.add({
       targets: this.carrier,
       rotation: currentCarrierRad + carrierDiff,
-      duration: 250,
+      duration: camDur,
     });
 
     const currentPlayerRad = this.player.rotation;
@@ -442,7 +455,7 @@ export default class Scene0 extends Phaser.Scene {
     this.tweens.add({
       targets: this.player,
       rotation: currentPlayerRad + playerDiff,
-      duration: 250,
+      duration: camDur,
     });
   }
 
@@ -464,7 +477,15 @@ export default class Scene0 extends Phaser.Scene {
     return closest;
   }
 
-  update() {
+  update(time, delta) {
+    const dtSeconds = delta / 1000;
+
+    if (!this.isGameOver && !this.isFalling) {
+      this.speed += 5 * dtSeconds;
+
+      if (this.speed > 750) this.speed = 750;
+    }
+
     const dirs = { UP: [0, -1], DOWN: [0, 1], LEFT: [-1, 0], RIGHT: [1, 0] };
     this.carrier.setVelocity(
       dirs[this.carrierTravelDir][0] * this.speed,
@@ -477,6 +498,27 @@ export default class Scene0 extends Phaser.Scene {
 
     this.bgStars.tilePositionX = this.cameras.main.scrollX * 0.05;
     this.bgStars.tilePositionY = this.cameras.main.scrollY * 0.05;
+
+    for (let i = this.asteroids.length - 1; i >= 0; i--) {
+      const aster = this.asteroids[i];
+
+      if (
+        Phaser.Math.Distance.Between(
+          this.carrier.x,
+          this.carrier.y,
+          aster.x,
+          aster.y,
+        ) > 2500
+      ) {
+        aster.destroy();
+        this.asteroids.splice(i, 1);
+        continue;
+      }
+
+      aster.rotation += aster.rotSpeed * dtSeconds;
+      aster.x += aster.driftX * dtSeconds;
+      aster.y += aster.driftY * dtSeconds;
+    }
 
     if (this.isGameOver) return;
 
@@ -532,24 +574,6 @@ export default class Scene0 extends Phaser.Scene {
     }
 
     if (this.roadPieces.length > 40) this.roadPieces.shift().destroy();
-
-    // Limpeza dos asteroides velhos para não sobrecarregar a memória do jogo
-    while (this.asteroids.length > 0) {
-      const oldestAster = this.asteroids[0];
-      if (
-        Phaser.Math.Distance.Between(
-          this.carrier.x,
-          this.carrier.y,
-          oldestAster.x,
-          oldestAster.y,
-        ) > 2500
-      ) {
-        oldestAster.destroy();
-        this.asteroids.shift();
-      } else {
-        break;
-      }
-    }
 
     if (!this.getPieceUnder(this.carrier)) {
       this.triggerFall(this.playerTravelDir === "LEFT" ? "LEFT" : "RIGHT");
