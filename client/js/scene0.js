@@ -155,16 +155,15 @@ export default class Scene0 extends Phaser.Scene {
     this.uiCam.ignore([this.bgStars, this.worldLayer]);
 
     this.pointerGesture = { downX: 0, downY: 0, downTime: 0, moved: false };
-    // Touch / mouse input begins: record swipe start coordinates.
-    this.input.on("pointerdown", (pointer) => {
+
+    this.handlePointerDown = (pointer) => {
       if (this.isGameOver || this.game.isSpectator) return;
       this.pointerGesture.downX = pointer.x;
       this.pointerGesture.downY = pointer.y;
       this.pointerGesture.downTime = performance.now();
-    });
+    };
 
-    // Touch / mouse end: interpret swipe or tap as trick or turn gesture.
-    this.input.on("pointerup", (pointer) => {
+    this.handlePointerUp = (pointer) => {
       if (this.isGameOver || this.game.isSpectator) return;
       const dx = pointer.x - this.pointerGesture.downX;
       const dy = pointer.y - this.pointerGesture.downY;
@@ -177,11 +176,17 @@ export default class Scene0 extends Phaser.Scene {
         const turn = pointer.x > width / 2 ? "RIGHT" : "LEFT";
         this.attemptTurn(turn);
       }
-    });
+    };
 
-    this.input.keyboard.on("keydown-A", () => this.attemptTurn("LEFT"));
-    this.input.keyboard.on("keydown-D", () => this.attemptTurn("RIGHT"));
-    this.input.keyboard.on("keydown-W", () => this.startTrick());
+    this.handleTurnLeft = () => this.attemptTurn("LEFT");
+    this.handleTurnRight = () => this.attemptTurn("RIGHT");
+    this.handleStartTrick = () => this.startTrick();
+
+    this.input.on("pointerdown", this.handlePointerDown);
+    this.input.on("pointerup", this.handlePointerUp);
+    this.input.keyboard.on("keydown-A", this.handleTurnLeft);
+    this.input.keyboard.on("keydown-D", this.handleTurnRight);
+    this.input.keyboard.on("keydown-W", this.handleStartTrick);
 
     this.events.once("shutdown", () => this.cleanup());
 
@@ -258,6 +263,38 @@ export default class Scene0 extends Phaser.Scene {
   }
 
   cleanup() {
+    if (this.input) {
+      if (this.handlePointerDown)
+        this.input.off("pointerdown", this.handlePointerDown);
+      if (this.handlePointerUp)
+        this.input.off("pointerup", this.handlePointerUp);
+      if (this.input.keyboard) {
+        if (this.handleTurnLeft)
+          this.input.keyboard.off("keydown-A", this.handleTurnLeft);
+        if (this.handleTurnRight)
+          this.input.keyboard.off("keydown-D", this.handleTurnRight);
+        if (this.handleStartTrick)
+          this.input.keyboard.off("keydown-W", this.handleStartTrick);
+      }
+    }
+    this.handlePointerDown = null;
+    this.handlePointerUp = null;
+    this.handleTurnLeft = null;
+    this.handleTurnRight = null;
+    this.handleStartTrick = null;
+
+    if (this.roadPieces && this.roadPieces.length) {
+      for (const piece of this.roadPieces) {
+        this.destroyAsteroidsForPiece(piece);
+      }
+    }
+    if (this.asteroids && this.asteroids.length) {
+      for (const aster of this.asteroids) {
+        if (aster && aster.active) aster.destroy();
+      }
+      this.asteroids.length = 0;
+    }
+
     if (this.game.socket) {
       // Remove socket listeners added during this scene to prevent duplicates.
       this.game.socket.off("scene0");
@@ -436,7 +473,8 @@ export default class Scene0 extends Phaser.Scene {
   }
 
   // Spawn decorative asteroids near the current track piece.
-  spawnAsteroidNear(x, y) {
+  spawnAsteroidNear(x, y, parentPiece = null) {
+    const created = [];
     for (let i = 0; i < 4; i++) {
       if (this.random.frac() > 0.7) continue;
       const type = this.random.pick(["aster_1", "aster_2", "aster_3"]);
@@ -452,9 +490,27 @@ export default class Scene0 extends Phaser.Scene {
       aster.rotSpeed = this.random.realInRange(-0.5, 0.5);
       aster.driftX = this.random.realInRange(-10, 10);
       aster.driftY = this.random.realInRange(-10, 10);
+      if (parentPiece) aster.parentPiece = parentPiece;
       this.asteroids.push(aster);
+      created.push(aster);
       this.worldLayer.add(aster);
     }
+    return created;
+  }
+
+  destroyAsteroidsForPiece(piece) {
+    if (
+      !piece ||
+      !piece.spawnedAsteroids ||
+      piece.spawnedAsteroids.length === 0
+    )
+      return;
+    for (const asteroid of piece.spawnedAsteroids) {
+      if (asteroid && asteroid.active) asteroid.destroy();
+      const index = this.asteroids.indexOf(asteroid);
+      if (index !== -1) this.asteroids.splice(index, 1);
+    }
+    piece.spawnedAsteroids.length = 0;
   }
 
   // Handle a failed turn or incorrect lean by triggering a fall animation.
@@ -581,7 +637,7 @@ export default class Scene0 extends Phaser.Scene {
     piece.trackType = type;
     this.roadPieces.push(piece);
     this.worldLayer.add(piece);
-    this.spawnAsteroidNear(piece.x, piece.y);
+    piece.spawnedAsteroids = this.spawnAsteroidNear(piece.x, piece.y, piece);
 
     let angle = 0;
     if (this.trackCursor.dir === "UP") {
@@ -716,7 +772,11 @@ export default class Scene0 extends Phaser.Scene {
     ) {
       this.generateTrackPiece();
     }
-    if (this.roadPieces.length > 120) this.roadPieces.shift().destroy();
+    if (this.roadPieces.length > 120) {
+      const oldPiece = this.roadPieces.shift();
+      this.destroyAsteroidsForPiece(oldPiece);
+      oldPiece.destroy();
+    }
 
     if (this.asteroids.length > 80) {
       const removeCount = this.asteroids.length - 80;
