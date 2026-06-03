@@ -10,16 +10,16 @@ export default class Win extends Phaser.Scene {
     const bgScale = Math.max(width / this.bg.width, height / this.bg.height);
     this.bg.setScale(bgScale);
 
-    //MÚSICA
-if (!this.sound.get("win")) {
-    const musica = this.sound.add("win", { 
-        loop: true, 
-        volume: 0.5 
-    });
-    musica.play();
-} else if (!this.sound.get("win").isPlaying) {
-    this.sound.get("win").play();
-}
+    // MÚSICA
+    if (!this.sound.get("win")) {
+      const musica = this.sound.add("win", {
+        loop: true,
+        volume: 0.5,
+      });
+      musica.play();
+    } else if (!this.sound.get("win").isPlaying) {
+      this.sound.get("win").play();
+    }
 
     this.add
       .text(width / 2, height * 0.4, "Venceu!", {
@@ -32,13 +32,34 @@ if (!this.sound.get("win")) {
 
     this.input.on("pointerdown", () => {
       if (!this.game.isSpectator) {
+        let isFirstWin = false;
+
         try {
+          // Verifica se o jogador já ganhou antes
+          const hasWonBefore = localStorage.getItem("galacto_hasWon");
+
+          if (!hasWonBefore) {
+            isFirstWin = true; // É a primeira vez!
+          }
+
+          // Agora sim, salva que ele já ganhou para as próximas vezes
           localStorage.setItem("galacto_hasWon", "1");
         } catch (e) {
           // ignore
         }
-        this.game.socket.emit("change-scene", this.game.room, "start");
-        this.scene.start("start");
+
+        // Decide para qual cena ir
+        const nextScene = isFirstWin ? "finalFeliz" : "start";
+
+        // Emite a mudança de cena para o multiplayer e troca a cena local
+        if (this.game.socket && this.game.room) {
+          this.game.socket.emit("change-scene", this.game.room, nextScene);
+        }
+
+        // Se quiser que a música pare ao sair da tela de vitória, descomente a linha abaixo:
+        // this.sound.get("win").stop();
+
+        this.scene.start(nextScene);
       }
     });
   }
