@@ -183,13 +183,11 @@ export default class Scene0 extends Phaser.Scene {
     this.input.keyboard.on("keydown-D", () => this.attemptTurn("RIGHT"));
     this.input.keyboard.on("keydown-W", () => this.startTrick());
 
-    this.events.on("shutdown", () => this.cleanup());
+    this.events.once("shutdown", () => this.cleanup());
 
     // Socket: for spectators, receive remote state updates
-    if (this.game.socket) {
+    if (this.game.socket && this.game.isSpectator) {
       this.game.socket.on("scene0", (state) => {
-        // Only spectators should apply remote state updates
-        if (!this.game.isSpectator) return;
         if (state && typeof state === "object") {
           if (typeof state.score === "number") {
             this.score = state.score;
@@ -227,17 +225,6 @@ export default class Scene0 extends Phaser.Scene {
               if (typeof state.carrier.rotation === "number")
                 this.carrier.rotation = state.carrier.rotation;
             }
-            if (state.camera) {
-              if (typeof state.camera.rotation === "number")
-                this.cameras.main.rotation = state.camera.rotation;
-              if (state.camera.followOffset) {
-                const fo = state.camera.followOffset;
-                if (typeof fo.x === "number")
-                  this.cameras.main.followOffset.x = fo.x;
-                if (typeof fo.y === "number")
-                  this.cameras.main.followOffset.y = fo.y;
-              }
-            }
           } catch (e) {
             // ignore any sync errors
           }
@@ -253,46 +240,20 @@ export default class Scene0 extends Phaser.Scene {
       });
     }
 
-    // If player is the host of an infinite match, periodically send state updates to server
-    this._infiniteUpdateInterval = null;
+    // If player is the host of an infinite match, periodically send reduced state updates to server
+    this._infiniteUpdateEvent = null;
     if (
       this.game.socket &&
       this.isInfiniteMode &&
       !this.game.isSpectator &&
       this.game.room
     ) {
-      this._infiniteUpdateInterval = setInterval(() => {
-        try {
-          // Send richer state for spectators: score, time, player and carrier positions
-          const state = {
-            score: this.score,
-            time: Math.ceil(this.timeElapsed),
-            player: {
-              x: this.player.x,
-              y: this.player.y,
-              angle: this.player.angle,
-              frame: this.player.frame
-                ? this.player.frame.name || this.player.frame
-                : undefined,
-            },
-            carrier: {
-              x: this.carrier.x,
-              y: this.carrier.y,
-              rotation: this.carrier.rotation,
-            },
-            camera: {
-              rotation: this.cameras.main.rotation,
-              followOffset: {
-                x: this.cameras.main.followOffset.x,
-                y: this.cameras.main.followOffset.y,
-              },
-            },
-          };
-          this.game.socket.emit("update-infinite", this.game.room, state);
-        } catch (e) {
-          // ignore
-        }
-      }, 300);
+      this._infiniteUpdateEvent = this.time.addEvent({
+        delay: 1000,
+        loop: true,
+        callback: this.sendInfiniteStateUpdate,
+        callbackScope: this,
+      });
     }
   }
 
@@ -307,9 +268,43 @@ export default class Scene0 extends Phaser.Scene {
       }
     }
     if (this.bgMusic) this.bgMusic.stop();
-    if (this._infiniteUpdateInterval) {
-      clearInterval(this._infiniteUpdateInterval);
-      this._infiniteUpdateInterval = null;
+    if (this._infiniteUpdateEvent) {
+      this._infiniteUpdateEvent.remove(false);
+      this._infiniteUpdateEvent = null;
+    }
+  }
+
+  sendInfiniteStateUpdate() {
+    if (
+      !this.game.socket ||
+      !this.isInfiniteMode ||
+      this.game.isSpectator ||
+      !this.game.room
+    ) {
+      return;
+    }
+
+    try {
+      const state = {
+        score: this.score,
+        time: Math.ceil(this.timeElapsed),
+        player: {
+          x: this.player.x,
+          y: this.player.y,
+          angle: this.player.angle,
+          frame: this.player.frame
+            ? this.player.frame.name || this.player.frame
+            : undefined,
+        },
+        carrier: {
+          x: this.carrier.x,
+          y: this.carrier.y,
+          rotation: this.carrier.rotation,
+        },
+      };
+      this.game.socket.emit("update-infinite", this.game.room, state);
+    } catch (e) {
+      // ignore
     }
   }
 
@@ -722,6 +717,14 @@ export default class Scene0 extends Phaser.Scene {
       this.generateTrackPiece();
     }
     if (this.roadPieces.length > 120) this.roadPieces.shift().destroy();
+
+    if (this.asteroids.length > 80) {
+      const removeCount = this.asteroids.length - 80;
+      for (let i = 0; i < removeCount; i++) {
+        const oldAster = this.asteroids.shift();
+        if (oldAster) oldAster.destroy();
+      }
+    }
 
     const cp = this.getPieceUnder(this.carrier);
 

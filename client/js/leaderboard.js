@@ -77,6 +77,9 @@ export default class Leaderboard extends Phaser.Scene {
     // --- BLOCO: COMUNICAÇÃO COM O SERVIDOR (SOCKET.IO) ---
     // Função que vai lidar com a resposta do servidor contendo os dados do placar
     this.leaderboardHandler = (leaderboard) => {
+      if (!this.entriesText || !this.scene || !this.sys) {
+        return;
+      }
       // Garante que o que chegou é um array, senão usa um array vazio
       this.leaderboard = Array.isArray(leaderboard) ? leaderboard : [];
       // Atualiza o texto na tela com os dados recebidos
@@ -104,9 +107,11 @@ export default class Leaderboard extends Phaser.Scene {
       // Define um timer de limite de tempo (2.5 segundos)
       // Se os dados não chegarem nesse tempo, mostra mensagem de falha
       this.timeoutId = window.setTimeout(() => {
-        this.entriesText.setText(
-          "Falha ao carregar o placar. Tente novamente mais tarde.",
-        );
+        if (this.entriesText && this.scene && this.sys) {
+          this.entriesText.setText(
+            "Falha ao carregar o placar. Tente novamente mais tarde.",
+          );
+        }
       }, 2500);
     };
 
@@ -118,6 +123,9 @@ export default class Leaderboard extends Phaser.Scene {
       // Se não, aguarda o evento de "connect" acontecer primeiro para então pedir os dados
       this.game.socket.once("connect", this.connectHandler);
     }
+
+    // Garante que a limpeza de listeners aconteça ao desligar esta cena.
+    this.events.once("shutdown", this.shutdown, this);
   }
 
   // --- BLOCO: LIMPEZA DA CENA ---
@@ -141,6 +149,10 @@ export default class Leaderboard extends Phaser.Scene {
   // --- BLOCO: FORMATAÇÃO DO TEXTO ---
   // Transforma o array de dados puro em um texto bonito para ser lido na tela
   updateLeaderboardText() {
+    if (!this.entriesText || !this.scene || !this.sys) {
+      return;
+    }
+
     // Se a lista estiver vazia, avisa que não tem resultados
     if (!this.leaderboard.length) {
       this.entriesText.setText("Nenhum resultado registrado ainda.");
