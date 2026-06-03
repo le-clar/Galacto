@@ -51,7 +51,14 @@ export default class Scene0 extends Phaser.Scene {
     this.forcedStraightRemaining = 0;
     this.initialStraightRemaining = this.tutorialActive ? 6 : 12;
 
-    this.isInfiniteMode = !!this.game.isInfiniteMode;
+    this.isInfiniteMode =
+      !!this.game.isInfiniteMode ||
+      (!!this.game.isSpectator && !!this.game.room);
+    this.isSpectatingInfinite = !!this.game.isSpectator && !!this.game.room;
+    // Determine whether this client should be the active controller.
+    // Controller = not a spectator AND (not an infinite match OR this client created the match)
+    this.isController =
+      !this.game.isSpectator && (!this.isInfiniteMode || !!this.game.isHost);
 
     // --- SISTEMA DE TUTORIAL (História apenas, primeira vez) ---
     // Não mostra tutorial no modo infinito e não repete se já foi visto.
@@ -68,6 +75,8 @@ export default class Scene0 extends Phaser.Scene {
     this.timeElapsed = 0;
     this.isGameOver = false;
     this.score = 0;
+    this._lastSentTime = -1;
+    this._lastSentScore = -1;
 
     // Tempo de jogo aumentado para exatamente 2 minutos (120s)
     this.maxTime = this.isInfiniteMode ? Infinity : 120;
@@ -157,7 +166,7 @@ export default class Scene0 extends Phaser.Scene {
     this.pointerGesture = { downX: 0, downY: 0, downTime: 0, moved: false };
     // Touch / mouse input begins: record swipe start coordinates.
     this.input.on("pointerdown", (pointer) => {
-      if (this.isGameOver || this.game.isSpectator) return;
+      if (this.isGameOver || !this.isController) return;
       this.pointerGesture.downX = pointer.x;
       this.pointerGesture.downY = pointer.y;
       this.pointerGesture.downTime = performance.now();
@@ -165,7 +174,7 @@ export default class Scene0 extends Phaser.Scene {
 
     // Touch / mouse end: interpret swipe or tap as trick or turn gesture.
     this.input.on("pointerup", (pointer) => {
-      if (this.isGameOver || this.game.isSpectator) return;
+      if (this.isGameOver || !this.isController) return;
       const dx = pointer.x - this.pointerGesture.downX;
       const dy = pointer.y - this.pointerGesture.downY;
       if (
@@ -179,20 +188,31 @@ export default class Scene0 extends Phaser.Scene {
       }
     });
 
-    this.input.keyboard.on("keydown-A", () => this.attemptTurn("LEFT"));
-    this.input.keyboard.on("keydown-D", () => this.attemptTurn("RIGHT"));
-    this.input.keyboard.on("keydown-W", () => this.startTrick());
+    this.input.keyboard.on("keydown-A", () => {
+      if (this.isController) this.attemptTurn("LEFT");
+    });
+    this.input.keyboard.on("keydown-D", () => {
+      if (this.isController) this.attemptTurn("RIGHT");
+    });
+    this.input.keyboard.on("keydown-W", () => {
+      if (this.isController) this.startTrick();
+    });
 
     this.events.once("shutdown", () => this.cleanup());
 
-    // Socket: for spectators, receive remote state updates
-    if (this.game.socket && this.game.isSpectator) {
+    // Socket: receive remote state updates for spectators and joined infinite rooms
+    if (this.game.socket) {
       this.game.socket.on("scene0", (state) => {
-        if (state && typeof state === "object") {
+        if (
+          state &&
+          typeof state === "object" &&
+          (this.game.isSpectator || this.isSpectatingInfinite)
+        ) {
+          const spectatorMode = this.game.isSpectator || this.isInfiniteMode;
           if (typeof state.score === "number") {
             this.score = state.score;
             this.scoreText.setText(
-              this.isInfiniteMode
+              spectatorMode
                 ? `Pontos: ${this.score}`
                 : `Pontos: ${this.score} / ${this.targetScore}`,
             );
@@ -200,10 +220,27 @@ export default class Scene0 extends Phaser.Scene {
           if (typeof state.time === "number") {
             this.timeElapsed = state.time;
             this.timeText.setText(
-              this.isInfiniteMode
+              spectatorMode
                 ? `Tempo: ${Math.ceil(this.timeElapsed)}s`
                 : `Tempo: ${this.maxTime}s`,
             );
+          }
+          // Play trick animation locally for spectators when host signals it
+          if (state.isDoingTrick && !this.isDoingTrick) {
+            this.isDoingTrick = true;
+            try {
+              this.tweens.add({
+                targets: this.player,
+                angle: this.player.angle + 360,
+                duration: 1100,
+                ease: "Cubic.easeOut",
+                onComplete: () => {
+                  this.isDoingTrick = false;
+                },
+              });
+            } catch (e) {
+              this.isDoingTrick = false;
+            }
           }
           // Apply player/carrier positions for smoother spectating
           try {
@@ -216,6 +253,17 @@ export default class Scene0 extends Phaser.Scene {
                 this.player.angle = state.player.angle;
               if (typeof state.player.frame !== "undefined")
                 this.player.setFrame(state.player.frame);
+              if (typeof state.playerLeanAngle === "number") {
+                this.playerLeanAngle = state.playerLeanAngle;
+                // update frame/position appropriately for lean
+                this.player.setFrame(
+                  Math.abs(this.playerLeanAngle) < 15 ? 0 : 1,
+                );
+                this.player.setRotation(
+                  this.carrier.rotation +
+                    Phaser.Math.DegToRad(this.playerLeanAngle),
+                );
+              }
             }
             if (state.carrier) {
               if (typeof state.carrier.x === "number")
@@ -224,12 +272,25 @@ export default class Scene0 extends Phaser.Scene {
                 this.carrier.y = state.carrier.y;
               if (typeof state.carrier.rotation === "number")
                 this.carrier.rotation = state.carrier.rotation;
+              if (typeof state.carrierTravelDir === "string") {
+                this.carrierTravelDir = state.carrierTravelDir;
+                // align camera/ship with remote direction for smoother mirroring
+                this.updateCameraRotation();
+              }
+              if (typeof state.speed === "number") {
+                this.speed = state.speed;
+              }
             }
           } catch (e) {
             // ignore any sync errors
           }
         }
       });
+      if (this.game.isSpectator && this.game.room) {
+        this.game.socket.emit("join-room", this.game.room);
+        // Request the full current state for this infinite match
+        this.game.socket.emit("request-infinite-state", this.game.room);
+      }
       this.game.socket.on("game-ended", () => {
         if (this.game.isSpectator) {
           // Spectator: leave view when match ends and return to menu.
@@ -267,6 +328,8 @@ export default class Scene0 extends Phaser.Scene {
         this.game.room = null;
       }
     }
+    // Clear host flag when leaving the scene
+    if (this.game.isHost) this.game.isHost = false;
     if (this.bgMusic) this.bgMusic.stop();
     if (this._infiniteUpdateEvent) {
       this._infiniteUpdateEvent.remove(false);
@@ -301,6 +364,10 @@ export default class Scene0 extends Phaser.Scene {
           y: this.carrier.y,
           rotation: this.carrier.rotation,
         },
+        carrierTravelDir: this.carrierTravelDir,
+        playerLeanAngle: this.playerLeanAngle,
+        speed: this.speed,
+        isDoingTrick: this.isDoingTrick,
       };
       this.game.socket.emit("update-infinite", this.game.room, state);
     } catch (e) {
@@ -353,6 +420,16 @@ export default class Scene0 extends Phaser.Scene {
     this.trickCooldown = true;
     this.sound.play("swoosh");
 
+    // Notify spectators that a trick started so they can animate it locally
+    if (
+      this.game.socket &&
+      this.isInfiniteMode &&
+      !this.game.isSpectator &&
+      this.game.room
+    ) {
+      this.sendInfiniteStateUpdate();
+    }
+
     this.forcedStraightRemaining += 6;
 
     this.tweens.add({
@@ -371,6 +448,16 @@ export default class Scene0 extends Phaser.Scene {
             ? `Pontos: ${this.score}`
             : `Pontos: ${this.score} / ${this.targetScore}`,
         );
+        // Broadcast score change immediately to spectators
+        if (
+          this.game.socket &&
+          this.isInfiniteMode &&
+          !this.game.isSpectator &&
+          this.game.room
+        ) {
+          this._lastSentScore = this.score;
+          this.sendInfiniteStateUpdate();
+        }
 
         this.time.delayedCall(1400, () => {
           this.trickCooldown = false;
@@ -662,6 +749,20 @@ export default class Scene0 extends Phaser.Scene {
             ? `Tempo: ${Math.ceil(this.timeElapsed)}s`
             : `Tempo: ${Math.ceil(timeLeft)}s`,
         );
+
+        // If host of an infinite match, send immediate state updates when whole seconds change
+        if (
+          this.isInfiniteMode &&
+          !this.game.isSpectator &&
+          this.game.socket &&
+          this.game.room
+        ) {
+          const currentSec = Math.ceil(this.timeElapsed);
+          if (currentSec !== this._lastSentTime) {
+            this._lastSentTime = currentSec;
+            this.sendInfiniteStateUpdate();
+          }
+        }
 
         if (!this.isInfiniteMode && timeLeft <= 0) {
           this.isGameOver = true;

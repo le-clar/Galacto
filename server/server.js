@@ -47,7 +47,12 @@ io.on("connection", (socket) => {
     // If there is an active infinite match, send current state to the joining client
     if (io.infiniteMatches && io.infiniteMatches[room]) {
       const m = io.infiniteMatches[room];
-      socket.emit("scene0", { score: m.points || 0, time: m.time || 0 });
+      // Prefer last full state if available so spectators get complete view
+      if (m.lastState && typeof m.lastState === "object") {
+        socket.emit("scene0", m.lastState);
+      } else {
+        socket.emit("scene0", { score: m.points || 0, time: m.time || 0 });
+      }
     }
   });
 
@@ -82,6 +87,18 @@ io.on("connection", (socket) => {
   // Spectator or others can request the current infinite list
   socket.on("request-infinite-list", () => {
     socket.emit("infinite-list", io.infiniteMatches || {});
+  });
+
+  // Return the last known full state for a given infinite match room
+  socket.on("request-infinite-state", (room) => {
+    if (io.infiniteMatches && io.infiniteMatches[room]) {
+      const m = io.infiniteMatches[room];
+      if (m.lastState && typeof m.lastState === "object") {
+        socket.emit("scene0", m.lastState);
+      } else {
+        socket.emit("scene0", { score: m.points || 0, time: m.time || 0 });
+      }
+    }
   });
 
   // Player sends periodic updates about the infinite match state

@@ -106,6 +106,7 @@ export default class Spectate extends Phaser.Scene {
 
   joinAsSpectator(roomId) {
     this.game.isSpectator = true;
+    this.game.isHost = false;
     this.game.room = roomId;
     // stop menu music before spectating
     try {

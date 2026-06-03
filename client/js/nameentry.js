@@ -193,6 +193,9 @@ export default class NameEntry extends Phaser.Scene {
       }
 
       const createHandler = () => {
+        // Mark this client as the host/controller for the new infinite match
+        this.game.isHost = true;
+        this.game.isSpectator = false;
         this.game.socket.emit(
           "create-infinite",
           this.game.room,
