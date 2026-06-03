@@ -49,7 +49,7 @@ export default class Scene0 extends Phaser.Scene {
     this.piecesSinceLastWindow = 0;
     this.piecesSinceLastTrickWindow = 0;
     this.forcedStraightRemaining = 0;
-    this.initialStraightRemaining = 12;
+    this.initialStraightRemaining = this.tutorialActive ? 6 : 12;
 
     this.isInfiniteMode = !!this.game.isInfiniteMode;
 
@@ -528,8 +528,8 @@ export default class Scene0 extends Phaser.Scene {
       this.piecesSinceLastWindow++;
       this.piecesSinceLastTrickWindow++;
     } else if (this.tutorialActive && this.totalPiecesGenerated < 50) {
-      if (this.totalPiecesGenerated === 15) type = "way_r";
-      else if (this.totalPiecesGenerated === 30) type = "way_l";
+      if (this.totalPiecesGenerated === 6) type = "way_r";
+      else if (this.totalPiecesGenerated === 12) type = "way_l";
       else type = "way_f";
       this.totalPiecesGenerated++;
     } else if (this.forcedStraightRemaining > 0) {

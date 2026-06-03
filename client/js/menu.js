@@ -59,13 +59,15 @@ export default class Menu extends Phaser.Scene {
 
     // --- FUNÇÃO AUXILIAR: CRIADOR DE BOTÕES ---
     // Cria uma função reutilizável para desenhar os botões na tela mais facilmente
-    const createButton = (x, y, label, onClick) => {
+    const createButton = (x, y, label, onClick, widthOverride) => {
+      const buttonWidth = widthOverride || btnWidth;
+
       // Cria a forma geométrica (retângulo) do botão, com borda branca e interatividade
       const rect = this.add
-        .rectangle(x, y, btnWidth, btnHeight, btnColor)
+        .rectangle(x, y, buttonWidth, btnHeight, btnColor)
         .setStrokeStyle(2, 0xffffff)
         .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true }); // Muda o mouse para a "mãozinha" de clique
+        .setInteractive({ useHandCursor: true });
 
       // Cria o texto que vai dentro do botão
       const txt = this.add
@@ -78,13 +80,11 @@ export default class Menu extends Phaser.Scene {
 
       // Associa a ação de clique (pointerdown) no botão à função (onClick) passada como parâmetro
       rect.on("pointerdown", () => {
-        // TOCA O EFEITO SONORO DO BOTÃO
         this.sound.play("button");
 
         if (onClick) onClick();
       });
 
-      // Retorna os elementos criados caso precise alterá-los depois
       return { rect, txt };
     };
 
@@ -92,7 +92,6 @@ export default class Menu extends Phaser.Scene {
     // Cria o primeiro botão. Ao clicar, define o jogo como "não infinito" e vai para a cutscene
     createButton(width / 2, startY, "Modo historia", () => {
       this.game.isInfiniteMode = false;
-      // stop menu music before transitioning
       if (this.sound.get("menu") && this.sound.get("menu").isPlaying) {
         this.sound.get("menu").stop();
       }
@@ -102,76 +101,104 @@ export default class Menu extends Phaser.Scene {
 
     // --- BLOCO: DESBLOQUEIO DO MODO INFINITO ---
     let hasWon = false;
+    let infiniteButton = null;
+    let placarButton = null;
+    let spectateButton = null;
+
     try {
       // Tenta ler no armazenamento do navegador (localStorage) se o jogador já venceu o modo história alguma vez
       hasWon = !!localStorage.getItem("galacto_hasWon");
     } catch (e) {
-      // Previne erros caso o jogador esteja em modo anônimo ou com cookies/storage desativados
       hasWon = false;
     }
 
-    // Se o jogador já venceu, renderiza o botão do "Modo Infinito" logo abaixo do primeiro
+    const updateMenuPositions = () => {
+      const infiniteY = startY + btnHeight + gap;
+      const placarY = hasWon ? infiniteY + btnHeight + gap : infiniteY;
+      const spectateY = placarY + btnHeight + gap;
+
+      if (infiniteButton) {
+        infiniteButton.rect.setY(infiniteY);
+        infiniteButton.txt.setY(infiniteY);
+      }
+
+      if (placarButton) {
+        placarButton.rect.setY(placarY);
+        placarButton.txt.setY(placarY);
+      }
+
+      if (spectateButton) {
+        spectateButton.rect.setY(spectateY);
+        spectateButton.txt.setY(spectateY);
+      }
+    };
+
+    const addInfiniteButton = () => {
+      if (infiniteButton) return;
+      hasWon = true;
+
+      try {
+        localStorage.setItem("galacto_hasWon", "1");
+      } catch (e) {
+        // ignore localStorage failures
+      }
+
+      infiniteButton = createButton(
+        width / 2,
+        startY + btnHeight + gap,
+        "Modo Infinito",
+        () => {
+          this.game.isInfiniteMode = true;
+          if (this.sound.get("menu") && this.sound.get("menu").isPlaying) {
+            this.sound.get("menu").stop();
+          }
+          this.scene.stop("menu");
+          this.scene.start("nameentry", { prestart: true });
+        },
+      );
+
+      updateMenuPositions();
+    };
+
     if (hasWon) {
-      createButton(width / 2, startY + btnHeight + gap, "Modo Infinito", () => {
-        this.game.isInfiniteMode = true; // Ativa a flag de modo infinito
-        // stop menu music before transitioning
+      addInfiniteButton();
+    }
+
+    // --- BLOCO: BOTÃO DO PLACAR ---
+    placarButton = createButton(
+      width / 2,
+      startY + (hasWon ? 2 * (btnHeight + gap) : btnHeight + gap),
+      "Placar",
+      () => {
+        this.scene.stop("menu");
+        this.scene.start("leaderboard");
+      },
+    );
+
+    // --- BOTÃO: ESPECTAR ---
+    spectateButton = createButton(
+      width / 2,
+      startY + (hasWon ? 3 * (btnHeight + gap) : 2 * (btnHeight + gap)),
+      "Espectar",
+      () => {
         if (this.sound.get("menu") && this.sound.get("menu").isPlaying) {
           this.sound.get("menu").stop();
         }
         this.scene.stop("menu");
-        // Ask for player name before starting infinite match
-        this.scene.start("nameentry", { prestart: true });
-      });
-    }
+        this.scene.start("spectate");
+      },
+    );
 
-    // --- BLOCO: BOTÃO DO PLACAR ---
-    // Calcula dinamicamente onde o botão de placar vai ficar
-    // Se o Modo Infinito estiver aparecendo, o placar desce mais um espaço. Se não, fica logo abaixo do História.
-    const placarY = startY + (hasWon ? 2 * (btnHeight + gap) : btnHeight + gap);
-
-    // Cria o botão de Placar
-    createButton(width / 2, placarY, "Placar", () => {
-      this.scene.stop("menu");
-      this.scene.start("leaderboard"); // Direciona para a tela de melhores pontuações
-    });
-
-    // --- BOTÃO: ESPECTAR ---
-    // Coloca o botão de espectar logo abaixo do placar
-    createButton(width / 2, placarY + btnHeight + gap, "Espectar", () => {
-      // stop menu music before spectating
-      if (this.sound.get("menu") && this.sound.get("menu").isPlaying) {
-        this.sound.get("menu").stop();
-      }
-      this.scene.stop("menu");
-      this.scene.start("spectate");
-    });
-
-    // --- AVISO DE TESTE ---
-    // Exibe uma mensagem pequena na parte inferior da tela explicando o atalho E
-    this.add
-      .text(
-        width / 2,
-        height * 0.95,
-        "aperte E para desbloquear modo infinito",
-        {
-          fontSize: "16px",
-          fill: "#ffffff",
-          fontFamily: "MinhaFontePersonalizada",
-        },
-      )
-      .setOrigin(0.5);
-
-    // --- TECLA DE ATALHO E ---
-    // Permite desbloquear o modo infinito diretamente pressionando E no menu
-    const keyE = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-    keyE.on("down", () => {
-      this.game.isInfiniteMode = true;
-      if (this.sound.get("menu") && this.sound.get("menu").isPlaying) {
-        this.sound.get("menu").stop();
-      }
-      this.sound.play("button");
-      this.scene.stop("menu");
-      this.scene.start("nameentry", { prestart: true });
-    });
+    // --- BOTÃO DE TESTE LATERAL ---
+    const sideButtonWidth = Math.min(160, width * 0.25);
+    createButton(
+      width - sideButtonWidth / 2 - 16,
+      startY,
+      "Teste",
+      () => {
+        addInfiniteButton();
+      },
+      sideButtonWidth,
+    );
   }
 }
