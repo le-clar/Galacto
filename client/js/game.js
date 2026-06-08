@@ -9,6 +9,7 @@ import Leaderboard from "./leaderboard.js";
 import GameOver from "./gameover.js";
 import Win from "./win.js";
 import Cutscene from "./cutscene.js";
+import finalFeliz from "./final-feliz.js";
 
 class Game extends Phaser.Game {
   constructor() {
@@ -27,6 +28,7 @@ class Game extends Phaser.Game {
     this.scene.add("scene0", Scene0);
     this.scene.add("gameover", GameOver);
     this.scene.add("win", Win);
+    this.scene.add("finalFeliz", finalFeliz);
     this.scene.start("start");
 
     const getSocketUrl = () => {
