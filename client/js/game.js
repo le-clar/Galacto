@@ -3,7 +3,6 @@ import Scene0 from "./scene0.js";
 import Start from "./start.js";
 import preloader from "./preloader.js";
 import Menu from "./menu.js";
-// room scene removed per request
 import Spectate from "./spectate.js";
 import NameEntry from "./nameentry.js";
 import Leaderboard from "./leaderboard.js";
