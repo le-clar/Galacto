@@ -27,7 +27,7 @@ export default class Gameover extends Phaser.Scene {
 
     // --- BLOCO: TÍTULO ---
     this.add
-      .text(width / 2, height * 0.3, "GAME OVER", {
+      .text(width / 2, height * 0.4, "GAME OVER", {
         fontSize: "60px",
         fill: "#9f88d8",
         fontStyle: "bold",
@@ -39,7 +39,6 @@ export default class Gameover extends Phaser.Scene {
     const btnWidth = Math.min(420, width * 0.6);
     const btnHeight = 64;
     const btnColor = 0x9f89d9;
-    const gap = 20;
 
     const createButton = (x, y, label, onClick) => {
       const rect = this.add
@@ -63,15 +62,15 @@ export default class Gameover extends Phaser.Scene {
       return { rect, txt };
     };
 
-    // --- BLOCO: BOTÃO "JOGAR NOVAMENTE" ---
-    createButton(width / 2, height * 0.5, "Jogar Novamente", () => {
+    // --- BLOCO: BOTÃO "JOGAR NOVAMENTE" CENTRALIZADO ---
+    // Centralizado no meio da tela no eixo X, logo abaixo do título no eixo Y
+    createButton(width / 2, height * 0.55, "Jogar Novamente", () => {
+      this.cleanup(); // Garante que a música e os rastros sejam mortos antes de reiniciar
       this.scene.start("cutscene", { isRetry: true });
     });
-
   }
 
   cleanup() {
-    // Stop the running game scene if the player is retrying, then silence the game over audio.
     try {
       if (this.scene.isActive("scene0")) {
         this.scene.stop("scene0");

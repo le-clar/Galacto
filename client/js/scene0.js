@@ -6,13 +6,10 @@ export default class Scene0 extends Phaser.Scene {
   create() {
     const { width, height } = this.scale;
 
-    // A shared group for everything that scrolls with the level.
     this.worldLayer = this.add.group();
 
-    // Deterministic random seed per room so track generation is consistent.
-    this.random = new Phaser.Math.RandomDataGenerator([
-      this.game.room || "default",
-    ]);
+    // Semente puramente aleatória, livre de resquícios de "salas" de multiplayer
+    this.random = new Phaser.Math.RandomDataGenerator();
 
     this.cameras.main.setBackgroundColor(0x080a29);
 
@@ -49,17 +46,13 @@ export default class Scene0 extends Phaser.Scene {
     this.piecesSinceLastWindow = 0;
     this.piecesSinceLastTrickWindow = 0;
     this.forcedStraightRemaining = 0;
-    this.initialStraightRemaining = this.tutorialActive ? 6 : 12;
 
-    this.isInfiniteMode = false;
-    this.isSpectatingInfinite = false;
-    this.game.isSpectator = false;
-    this.isController = true;
+    this.isInfiniteMode = !!this.game.isInfiniteMode;
 
-    // --- SISTEMA DE TUTORIAL (História apenas, primeira vez) ---
-    // Não mostra tutorial no modo infinito e não repete se já foi visto.
     const tutorialDone = localStorage.getItem("galacto_tutorial_done");
     this.tutorialActive = !this.isInfiniteMode && !tutorialDone;
+
+    this.initialStraightRemaining = this.tutorialActive ? 6 : 12;
 
     if (this.tutorialActive) {
       this.tutorialStep = 0;
@@ -71,10 +64,7 @@ export default class Scene0 extends Phaser.Scene {
     this.timeElapsed = 0;
     this.isGameOver = false;
     this.score = 0;
-    this._lastSentTime = -1;
-    this._lastSentScore = -1;
 
-    // Tempo de jogo aumentado para exatamente 2 minutos (120s)
     this.maxTime = this.isInfiniteMode ? Infinity : 120;
     this.targetScore = this.isInfiniteMode ? null : 3000;
 
@@ -84,7 +74,6 @@ export default class Scene0 extends Phaser.Scene {
     this.bgMusic = this.sound.add("soundtrack", { loop: true, volume: 0.5 });
     this.bgMusic.play();
 
-    // Gera o mapa inicial
     for (let i = 0; i < 80; i++) this.generateTrackPiece();
 
     this.carrier = this.physics.add.sprite(0, 0, "spaceship_new").setDepth(9);
@@ -160,19 +149,23 @@ export default class Scene0 extends Phaser.Scene {
     this.uiCam.ignore([this.bgStars, this.worldLayer]);
 
     this.pointerGesture = { downX: 0, downY: 0, downTime: 0, moved: false };
-    // Touch / mouse input begins: record swipe start coordinates.
+
     this.input.on("pointerdown", (pointer) => {
-      if (this.isGameOver || !this.isController) return;
+      if (this.isGameOver) return;
       this.pointerGesture.downX = pointer.x;
       this.pointerGesture.downY = pointer.y;
-      this.pointerGesture.downTime = performance.now();
+      this.pointerGesture.downTime = performance.now(); // Grava a hora exata do clique
     });
 
-    // Touch / mouse end: interpret swipe or tap as trick or turn gesture.
     this.input.on("pointerup", (pointer) => {
-      if (this.isGameOver || !this.isController) return;
+      if (this.isGameOver) return;
+
+      // TRAVA DO CLIQUE FANTASMA: Se o jogo não detectou o pointerdown NESTA partida, ele ignora.
+      if (!this.pointerGesture.downTime) return;
+
       const dx = pointer.x - this.pointerGesture.downX;
       const dy = pointer.y - this.pointerGesture.downY;
+
       if (
         this.pointerGesture.downY - pointer.y > 60 &&
         Math.abs(dy) > Math.abs(dx)
@@ -182,54 +175,42 @@ export default class Scene0 extends Phaser.Scene {
         const turn = pointer.x > width / 2 ? "RIGHT" : "LEFT";
         this.attemptTurn(turn);
       }
+
+      // Reseta a trava do clique para o próximo comando
+      this.pointerGesture.downTime = 0;
     });
 
-    this.input.keyboard.on("keydown-A", () => {
-      if (this.isController) this.attemptTurn("LEFT");
-    });
-    this.input.keyboard.on("keydown-D", () => {
-      if (this.isController) this.attemptTurn("RIGHT");
-    });
-    this.input.keyboard.on("keydown-W", () => {
-      if (this.isController) this.startTrick();
-    });
+    this.input.keyboard.on("keydown-A", () => this.attemptTurn("LEFT"));
+    this.input.keyboard.on("keydown-D", () => this.attemptTurn("RIGHT"));
+    this.input.keyboard.on("keydown-W", () => this.startTrick());
 
     this.events.once("shutdown", () => this.cleanup());
   }
 
   cleanup() {
     if (this.bgMusic) this.bgMusic.stop();
-    if (this._infiniteUpdateEvent) {
-      this._infiniteUpdateEvent.remove(false);
-      this._infiniteUpdateEvent = null;
-    }
   }
 
-  // End the current gameplay session and switch to a different scene.
   endGame(sceneKey) {
-    this.game.isSpectator = false;
     this.cleanup();
     this.scene.start(sceneKey);
   }
 
-  // Check upcoming pieces to decide whether a curve appears soon.
   isCurveUpcoming(lookAheadCount = 5) {
     const currentPiece = this.getPieceUnder(this.carrier);
     if (!currentPiece) return null;
     const index = this.roadPieces.indexOf(currentPiece);
     if (index === -1) return null;
 
-    // Varre as próximas peças reais da fila de renderização
     for (let i = 1; i <= lookAheadCount; i++) {
       const nextPiece = this.roadPieces[index + i];
       if (nextPiece && nextPiece.trackType !== "way_f") {
-        return nextPiece.trackType; // Retorna 'way_r' ou 'way_l'
+        return nextPiece.trackType;
       }
     }
     return null;
   }
 
-  // Begin a special trick move when the player swipes up.
   startTrick() {
     const curveAhead = !!this.isCurveUpcoming(5);
 
@@ -246,8 +227,6 @@ export default class Scene0 extends Phaser.Scene {
     this.isDoingTrick = true;
     this.trickCooldown = true;
     this.sound.play("swoosh");
-
-    // Notify spectators that a trick started so they can animate it locally
 
     this.forcedStraightRemaining += 6;
 
@@ -267,7 +246,6 @@ export default class Scene0 extends Phaser.Scene {
             ? `Pontos: ${this.score}`
             : `Pontos: ${this.score} / ${this.targetScore}`,
         );
-        this._lastSentScore = this.score;
 
         this.time.delayedCall(1400, () => {
           this.trickCooldown = false;
@@ -276,7 +254,6 @@ export default class Scene0 extends Phaser.Scene {
     });
   }
 
-  // Smoothly rotate the camera to align with the track direction.
   updateCameraRotation() {
     let targetCamRad = 0;
     if (this.carrierTravelDir === "UP") targetCamRad = 0;
@@ -320,7 +297,6 @@ export default class Scene0 extends Phaser.Scene {
           : -targetCamRad;
     const currentShipRad = this.carrier.rotation;
 
-    // Correção: Math.sin() e Math.cos() normais evitam a inversão nas curvas à esquerda!
     let shipDiff = Math.atan2(
       Math.sin(shipTargetRad - currentShipRad),
       Math.cos(shipTargetRad - currentShipRad),
@@ -332,7 +308,6 @@ export default class Scene0 extends Phaser.Scene {
     });
   }
 
-  // Spawn decorative asteroids near the current track piece.
   spawnAsteroidNear(x, y) {
     for (let i = 0; i < 4; i++) {
       if (this.random.frac() > 0.7) continue;
@@ -354,7 +329,6 @@ export default class Scene0 extends Phaser.Scene {
     }
   }
 
-  // Handle a failed turn or incorrect lean by triggering a fall animation.
   triggerFall() {
     if (this.isGameOver) return;
     this.isGameOver = true;
@@ -378,17 +352,11 @@ export default class Scene0 extends Phaser.Scene {
     });
   }
 
-  // Attempt to steer the player left or right based on input.
   attemptTurn(turnIntent) {
     if (this.isGameOver || this.isDoingTrick) return;
 
     const cp = this.getPieceUnder(this.carrier);
-    if (
-      cp &&
-      cp.trackType === "way_f" &&
-      !this.tutorialActive &&
-      !this.game.isSpectator
-    ) {
+    if (cp && cp.trackType === "way_f" && !this.tutorialActive) {
       const upcoming = this.isCurveUpcoming(4);
       const correctLeaning =
         (upcoming === "way_r" && turnIntent === "RIGHT") ||
@@ -402,7 +370,6 @@ export default class Scene0 extends Phaser.Scene {
     this.leanDirection = turnIntent;
   }
 
-  // Generate a new track tile and advance the track cursor.
   generateTrackPiece() {
     let type = "way_f";
 
@@ -500,7 +467,6 @@ export default class Scene0 extends Phaser.Scene {
     piece.setAngle(angle);
   }
 
-  // Main game loop: update timers, physics, input response, and track generation.
   update(time, delta) {
     const dtSeconds = delta / 1000;
 
@@ -537,7 +503,7 @@ export default class Scene0 extends Phaser.Scene {
         }
       }
 
-      if (!this.game.isSpectator && !this.tutorialActive) {
+      if (!this.tutorialActive) {
         this.timeElapsed += dtSeconds;
         this.speed = Math.min(1200, 550 + 650 * (this.timeElapsed / 20));
 
@@ -547,20 +513,6 @@ export default class Scene0 extends Phaser.Scene {
             ? `Tempo: ${Math.ceil(this.timeElapsed)}s`
             : `Tempo: ${Math.ceil(timeLeft)}s`,
         );
-
-        // If host of an infinite match, send immediate state updates when whole seconds change
-        if (
-          this.isInfiniteMode &&
-          !this.game.isSpectator &&
-          this.game.socket &&
-          this.game.room
-        ) {
-          const currentSec = Math.ceil(this.timeElapsed);
-          if (currentSec !== this._lastSentTime) {
-            this._lastSentTime = currentSec;
-            this.sendInfiniteStateUpdate();
-          }
-        }
 
         if (!this.isInfiniteMode && timeLeft <= 0) {
           this.isGameOver = true;
@@ -605,34 +557,35 @@ export default class Scene0 extends Phaser.Scene {
     this.bgStars.tilePositionX = this.cameras.main.scrollX * 0.1;
     this.bgStars.tilePositionY = this.cameras.main.scrollY * 0.1;
 
-    if (
-      Phaser.Math.Distance.Between(
-        this.carrier.x,
-        this.carrier.y,
-        this.roadPieces[this.roadPieces.length - 1].x,
-        this.roadPieces[this.roadPieces.length - 1].y,
-      ) < 4500
-    ) {
+    const cp = this.getPieceUnder(this.carrier);
+
+    if (cp) {
+      const idx = this.roadPieces.indexOf(cp);
+      if (this.roadPieces.length - idx < 60) {
+        this.generateTrackPiece();
+      }
+    } else if (this.roadPieces.length < 80) {
       this.generateTrackPiece();
     }
-    if (this.roadPieces.length > 120) this.roadPieces.shift().destroy();
 
-    if (this.asteroids.length > 80) {
-      const removeCount = this.asteroids.length - 80;
+    if (this.roadPieces.length > 120) {
+      const oldPiece = this.roadPieces.shift();
+      if (oldPiece) oldPiece.destroy();
+    }
+
+    if (this.asteroids.length > 300) {
+      const removeCount = this.asteroids.length - 300;
       for (let i = 0; i < removeCount; i++) {
         const oldAster = this.asteroids.shift();
         if (oldAster) oldAster.destroy();
       }
     }
 
-    const cp = this.getPieceUnder(this.carrier);
-
     if (
       !this.isGameOver &&
       cp &&
       cp.trackType === "way_f" &&
       this.leanDirection !== "NONE" &&
-      !this.game.isSpectator &&
       !this.tutorialActive
     ) {
       const upcoming = this.isCurveUpcoming(4);
@@ -677,13 +630,7 @@ export default class Scene0 extends Phaser.Scene {
       }
     }
 
-    if (
-      !this.isGameOver &&
-      !cp &&
-      !this.game.isSpectator &&
-      !this.tutorialActive
-    )
-      this.triggerFall();
+    if (!this.isGameOver && !cp && !this.tutorialActive) this.triggerFall();
   }
 
   getPieceUnder(target) {
