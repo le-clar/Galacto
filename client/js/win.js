@@ -51,11 +51,6 @@ export default class Win extends Phaser.Scene {
         // Decide para qual cena ir
         const nextScene = isFirstWin ? "finalFeliz" : "start";
 
-        // Emite a mudança de cena para o multiplayer e troca a cena local
-        if (this.game.socket && this.game.room) {
-          this.game.socket.emit("change-scene", this.game.room, nextScene);
-        }
-
         // Se quiser que a música pare ao sair da tela de vitória, descomente a linha abaixo:
         // this.sound.get("win").stop();
 

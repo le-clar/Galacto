@@ -51,14 +51,10 @@ export default class Scene0 extends Phaser.Scene {
     this.forcedStraightRemaining = 0;
     this.initialStraightRemaining = this.tutorialActive ? 6 : 12;
 
-    this.isInfiniteMode =
-      !!this.game.isInfiniteMode ||
-      (!!this.game.isSpectator && !!this.game.room);
-    this.isSpectatingInfinite = !!this.game.isSpectator && !!this.game.room;
-    // Determine whether this client should be the active controller.
-    // Controller = not a spectator AND (not an infinite match OR this client created the match)
-    this.isController =
-      !this.game.isSpectator && (!this.isInfiniteMode || !!this.game.isHost);
+    this.isInfiniteMode = false;
+    this.isSpectatingInfinite = false;
+    this.game.isSpectator = false;
+    this.isController = true;
 
     // --- SISTEMA DE TUTORIAL (História apenas, primeira vez) ---
     // Não mostra tutorial no modo infinito e não repete se já foi visto.
@@ -199,137 +195,9 @@ export default class Scene0 extends Phaser.Scene {
     });
 
     this.events.once("shutdown", () => this.cleanup());
-
-    // Socket: receive remote state updates for spectators and joined infinite rooms
-    if (this.game.socket) {
-      this.game.socket.on("scene0", (state) => {
-        if (
-          state &&
-          typeof state === "object" &&
-          (this.game.isSpectator || this.isSpectatingInfinite)
-        ) {
-          const spectatorMode = this.game.isSpectator || this.isInfiniteMode;
-          if (typeof state.score === "number") {
-            this.score = state.score;
-            this.scoreText.setText(
-              spectatorMode
-                ? `Pontos: ${this.score}`
-                : `Pontos: ${this.score} / ${this.targetScore}`,
-            );
-          }
-          if (typeof state.time === "number") {
-            this.timeElapsed = state.time;
-            this.timeText.setText(
-              spectatorMode
-                ? `Tempo: ${Math.ceil(this.timeElapsed)}s`
-                : `Tempo: ${this.maxTime}s`,
-            );
-          }
-          // Play trick animation locally for spectators when host signals it
-          if (state.isDoingTrick && !this.isDoingTrick) {
-            this.isDoingTrick = true;
-            try {
-              this.tweens.add({
-                targets: this.player,
-                angle: this.player.angle + 360,
-                duration: 1100,
-                ease: "Cubic.easeOut",
-                onComplete: () => {
-                  this.isDoingTrick = false;
-                },
-              });
-            } catch (e) {
-              this.isDoingTrick = false;
-            }
-          }
-          // Apply player/carrier positions for smoother spectating
-          try {
-            if (state.player) {
-              if (typeof state.player.x === "number")
-                this.player.x = state.player.x;
-              if (typeof state.player.y === "number")
-                this.player.y = state.player.y;
-              if (typeof state.player.angle === "number")
-                this.player.angle = state.player.angle;
-              if (typeof state.player.frame !== "undefined")
-                this.player.setFrame(state.player.frame);
-              if (typeof state.playerLeanAngle === "number") {
-                this.playerLeanAngle = state.playerLeanAngle;
-                // update frame/position appropriately for lean
-                this.player.setFrame(
-                  Math.abs(this.playerLeanAngle) < 15 ? 0 : 1,
-                );
-                this.player.setRotation(
-                  this.carrier.rotation +
-                    Phaser.Math.DegToRad(this.playerLeanAngle),
-                );
-              }
-            }
-            if (state.carrier) {
-              if (typeof state.carrier.x === "number")
-                this.carrier.x = state.carrier.x;
-              if (typeof state.carrier.y === "number")
-                this.carrier.y = state.carrier.y;
-              if (typeof state.carrier.rotation === "number")
-                this.carrier.rotation = state.carrier.rotation;
-              if (typeof state.carrierTravelDir === "string") {
-                this.carrierTravelDir = state.carrierTravelDir;
-                // align camera/ship with remote direction for smoother mirroring
-                this.updateCameraRotation();
-              }
-              if (typeof state.speed === "number") {
-                this.speed = state.speed;
-              }
-            }
-          } catch (e) {
-            // ignore any sync errors
-          }
-        }
-      });
-      if (this.game.isSpectator && this.game.room) {
-        this.game.socket.emit("join-room", this.game.room);
-        // Request the full current state for this infinite match
-        this.game.socket.emit("request-infinite-state", this.game.room);
-      }
-      this.game.socket.on("game-ended", () => {
-        if (this.game.isSpectator) {
-          // Spectator: leave view when match ends and return to menu.
-          this.game.isSpectator = false;
-          this.cleanup();
-          this.scene.start("menu");
-        }
-      });
-    }
-
-    // If player is the host of an infinite match, periodically send reduced state updates to server
-    this._infiniteUpdateEvent = null;
-    if (
-      this.game.socket &&
-      this.isInfiniteMode &&
-      !this.game.isSpectator &&
-      this.game.room
-    ) {
-      this._infiniteUpdateEvent = this.time.addEvent({
-        delay: 1000,
-        loop: true,
-        callback: this.sendInfiniteStateUpdate,
-        callbackScope: this,
-      });
-    }
   }
 
   cleanup() {
-    if (this.game.socket) {
-      // Remove socket listeners added during this scene to prevent duplicates.
-      this.game.socket.off("scene0");
-      this.game.socket.off("game-ended");
-      if (this.game.room) {
-        this.game.socket.emit("leave-room", this.game.room);
-        this.game.room = null;
-      }
-    }
-    // Clear host flag when leaving the scene
-    if (this.game.isHost) this.game.isHost = false;
     if (this.bgMusic) this.bgMusic.stop();
     if (this._infiniteUpdateEvent) {
       this._infiniteUpdateEvent.remove(false);
@@ -337,49 +205,8 @@ export default class Scene0 extends Phaser.Scene {
     }
   }
 
-  sendInfiniteStateUpdate() {
-    if (
-      !this.game.socket ||
-      !this.isInfiniteMode ||
-      this.game.isSpectator ||
-      !this.game.room
-    ) {
-      return;
-    }
-
-    try {
-      const state = {
-        score: this.score,
-        time: Math.ceil(this.timeElapsed),
-        player: {
-          x: this.player.x,
-          y: this.player.y,
-          angle: this.player.angle,
-          frame: this.player.frame
-            ? this.player.frame.name || this.player.frame
-            : undefined,
-        },
-        carrier: {
-          x: this.carrier.x,
-          y: this.carrier.y,
-          rotation: this.carrier.rotation,
-        },
-        carrierTravelDir: this.carrierTravelDir,
-        playerLeanAngle: this.playerLeanAngle,
-        speed: this.speed,
-        isDoingTrick: this.isDoingTrick,
-      };
-      this.game.socket.emit("update-infinite", this.game.room, state);
-    } catch (e) {
-      // ignore
-    }
-  }
-
   // End the current gameplay session and switch to a different scene.
   endGame(sceneKey) {
-    if (!this.game.isSpectator && this.game.socket && this.game.room) {
-      this.game.socket.emit("change-scene", this.game.room, sceneKey);
-    }
     this.game.isSpectator = false;
     this.cleanup();
     this.scene.start(sceneKey);
@@ -421,14 +248,6 @@ export default class Scene0 extends Phaser.Scene {
     this.sound.play("swoosh");
 
     // Notify spectators that a trick started so they can animate it locally
-    if (
-      this.game.socket &&
-      this.isInfiniteMode &&
-      !this.game.isSpectator &&
-      this.game.room
-    ) {
-      this.sendInfiniteStateUpdate();
-    }
 
     this.forcedStraightRemaining += 6;
 
@@ -448,16 +267,7 @@ export default class Scene0 extends Phaser.Scene {
             ? `Pontos: ${this.score}`
             : `Pontos: ${this.score} / ${this.targetScore}`,
         );
-        // Broadcast score change immediately to spectators
-        if (
-          this.game.socket &&
-          this.isInfiniteMode &&
-          !this.game.isSpectator &&
-          this.game.room
-        ) {
-          this._lastSentScore = this.score;
-          this.sendInfiniteStateUpdate();
-        }
+        this._lastSentScore = this.score;
 
         this.time.delayedCall(1400, () => {
           this.trickCooldown = false;
@@ -564,19 +374,7 @@ export default class Scene0 extends Phaser.Scene {
     });
     this.tweens.add({ targets: this.bgMusic, volume: 0, duration: 1200 });
     this.time.delayedCall(1200, () => {
-      if (this.isInfiniteMode) {
-        this.game.lastInfiniteResult = {
-          score: this.score,
-          time: Math.ceil(this.timeElapsed),
-        };
-        // Notify server that this infinite match ended before cleanup removes the room.
-        if (this.game.socket && this.game.room) {
-          this.game.socket.emit("end-infinite", this.game.room);
-        }
-        this.endGame("menu");
-      } else {
-        this.endGame("gameover");
-      }
+      this.endGame("gameover");
     });
   }
 

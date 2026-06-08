@@ -4,11 +4,7 @@ export default class Start extends Phaser.Scene {
   }
 
   init() {
-    let room = new URLSearchParams(location.search).get("room");
-    if (room) {
-      this.game.room = room;
-      this.game.socket.emit("join-room", this.game.room);
-    }
+    this.game.room = null;
   }
 
   preload() {

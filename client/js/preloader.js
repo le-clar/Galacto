@@ -12,9 +12,7 @@ class preloader extends Phaser.Scene {
     const { width, height } = this.scale;
 
     // Fundo centralizado e redimensionado para cobrir a tela (como no seu original, mas dinâmico)
-    this.add
-      .image(width / 2, height / 2, "phbg")
-      .setDisplaySize(width, height);
+    this.add.image(width / 2, height / 2, "phbg").setDisplaySize(width, height);
   }
 
   preload() {
@@ -75,31 +73,8 @@ class preloader extends Phaser.Scene {
   create() {
     const { width, height } = this.scale;
 
-    if (this.game.room) {
-      // JOGADOR 2+ (Entrou via QR Code)
-      this.game.isSpectator = true;
-
-      this.add
-        .text(
-          width / 2,
-          height / 2,
-          "Aguardando o primeiro jogador iniciar...",
-          {
-            fontSize: "28px",
-            fill: "#9f88d8",
-            fontFamily: "MinhaFontePersonalizada",
-          },
-        )
-        .setOrigin(0.5);
-
-      this.game.socket.on("start-game", () => {
-        this.scene.start("scene0");
-      });
-    } else {
-      // Se for o Host, vai direto para o menu
-      this.scene.stop("preloader");
-      this.scene.start("menu");
-    }
+    this.scene.stop("preloader");
+    this.scene.start("cutscene");
   }
 }
 

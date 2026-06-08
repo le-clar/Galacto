@@ -65,28 +65,9 @@ export default class Gameover extends Phaser.Scene {
 
     // --- BLOCO: BOTÃO "JOGAR NOVAMENTE" ---
     createButton(width / 2, height * 0.5, "Jogar Novamente", () => {
-      if (!this.game.isSpectator) {
-        // For story mode, go to cutscene. For infinite mode, ask for name and start a new infinite match.
-        if (this.game.isInfiniteMode) {
-          this.cleanup();
-          this.scene.start("nameentry", { prestart: true });
-        } else {
-          // story mode retry
-          this.scene.start("cutscene", { isRetry: true });
-        }
-      }
+      this.scene.start("cutscene", { isRetry: true });
     });
 
-    // --- BLOCO: BOTÃO "MENU PRINCIPAL" ---
-    createButton(width / 2, height * 0.5 + btnHeight + gap, "Menu", () => {
-      // Para a música de Game Over antes de voltar ao menu (opcional, mas recomendado)
-      if (this.sound.get("gameover")) {
-        this.sound.get("gameover").stop();
-      }
-
-      this.scene.stop("gameover");
-      this.scene.start("menu");
-    });
   }
 
   cleanup() {
