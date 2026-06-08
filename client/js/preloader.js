@@ -42,7 +42,7 @@ class preloader extends Phaser.Scene {
     // --- CARREGAMENTO DOS ASSETS ---
     this.load.setPath("assets/");
     this.load.image("phbg", "phbg.png");
-    this.load.image("menu_bg", "menu_bg.png");
+    this.load.image("gameover", "gameover.jpg");
     this.load.image("logo", "pixel-art.png");
     this.load.spritesheet("player", "player.png", {
       frameWidth: 32,
