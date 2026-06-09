@@ -3,10 +3,17 @@ export default class Win extends Phaser.Scene {
     super("win");
   }
 
+  // Carrega a nova imagem antes da cena iniciar
+  preload() {
+    this.load.image("win_img", "assets/win.png");
+  }
+
   // Win scene shown after the player completes a story run successfully.
   create() {
     const { width, height } = this.scale;
-    this.bg = this.add.image(width / 2, height / 2, "phbg");
+
+    // Trocado de "phbg" para "win_img"
+    this.bg = this.add.image(width / 2, height / 2, "win_img");
     const bgScale = Math.max(width / this.bg.width, height / this.bg.height);
     this.bg.setScale(bgScale);
 
@@ -52,7 +59,7 @@ export default class Win extends Phaser.Scene {
         const nextScene = isFirstWin ? "finalFeliz" : "start";
 
         // Se quiser que a música pare ao sair da tela de vitória, descomente a linha abaixo:
-        // this.sound.get("win").stop();
+        this.sound.get("win").stop();
 
         this.scene.start(nextScene);
       }
